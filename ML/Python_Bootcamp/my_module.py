@@ -1,1 +1,2 @@
-my_fav_number = 8
+def calculate(a, b):
+    return a * b
