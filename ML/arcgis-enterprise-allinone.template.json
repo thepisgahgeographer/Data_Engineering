@@ -1,0 +1,2227 @@
+{
+    "Description": "ArcGIS CloudFormation Template: Provisions an ArcGIS Enterprise with Portal for ArcGIS, ArcGIS Server, ArcGIS Data Store and ArcGIS Web Adaptor on one EC2 instance. **WARNING** You will be billed by AWS for the AWS resources if you create a stack from this template.",
+    "Metadata": {
+      "AWS::CloudFormation::Interface": {
+        "ParameterGroups": [
+          {
+            "Label": {
+              "default": "Amazon EC2 Configuration"
+            },
+            "Parameters": [
+              "PlatformType",
+              "AMIId",
+              "KeypairName",
+              "EIPAllocationId"
+            ]
+          },
+          {
+            "Label": {
+              "default": "Amazon VPC Configuration"
+            },
+            "Parameters": [
+              "VPCId",
+              "Subnet"
+            ]
+          },
+          {
+            "Label": {
+              "default": "Domain Name System (DNS) Configuration"
+            },
+            "Parameters": [
+              "SiteDomain",
+              "SecondarySiteDomain"
+            ]
+          },
+          {
+            "Label": {
+              "default": "ArcGIS Enterprise Configuration"
+            },
+            "Parameters": [
+              "InstanceType",
+              "InstanceDriveSize",
+              "DeploymentBucket",
+              "PortalLicenseFileKeyName",
+              "UserLicenseTypeId",
+              "ServerLicenseFileKeyName",
+              "SiteadminUserName",
+              "SiteadminUserPassword",
+              "arcgisUserPassword",
+              "ConfigStoreType",
+              "PortalWebadaptorName",
+              "ServerWebadaptorName",
+              "SSLCertificateFileKeyName",
+              "SSLCertificatePassword"
+            ]
+          }
+        ],
+        "ParameterLabels": {
+          "PlatformType": {
+            "default": "Platform Type (Required)"
+          },
+          "AMIId": {
+            "default": "EC2 Instance AMI ID (Optional)"
+          },
+          "KeypairName": {
+            "default": "EC2 Instance Keypair Name (Required)"
+          },
+          "EIPAllocationId": {
+            "default": "Elastic IP Address Allocation ID (Required)"
+          },
+          "VPCId": {
+            "default": "VPC ID (Required)"
+          },
+          "Subnet": {
+            "default": "Subnet ID 1 (Required)"
+          },
+          "InstanceType": {
+            "default": "EC2 Instance Type (Required)"
+          },
+          "InstanceDriveSize": {
+            "default": "EC2 Instance Root Drive Disk Space (Required)"
+          },
+          "DeploymentBucket": {
+            "default": "Deployment Bucket Name (Required)"
+          },
+          "PortalLicenseFileKeyName": {
+            "default": "Portal License File Name (Required)"
+          },
+          "UserLicenseTypeId": {
+            "default": "User License Type ID (Optional)"
+          },
+          "ServerLicenseFileKeyName": {
+            "default": "Server License File Name (Required)"
+          },
+          "SiteadminUserName": {
+            "default": "Portal and Server Administrator User Name (Required)"
+          },
+          "SiteadminUserPassword": {
+            "default": "Portal and Server Administrator User Password (Required)"
+          },
+          "arcgisUserPassword": {
+            "default": "Windows 'arcgis' User Password (Conditional)"
+          },
+          "ConfigStoreType": {
+            "default": "Configuration Store Type (Required)"
+          },
+          "SiteDomain": {
+            "default": "ArcGIS Enterprise Deployment Domain Name (Required)"
+          },
+          "SecondarySiteDomain": {
+            "default": "ArcGIS Enterprise Deployment Secondary Domain Name (Optional)"
+          },
+          "PortalWebadaptorName": {
+            "default": "Portal Web Adaptor Name (Required)"
+          },
+          "ServerWebadaptorName": {
+            "default": "Server Web Adaptor Name (Required)"
+          },
+          "SSLCertificateFileKeyName": {
+            "default": "SSL Certificate File Name (Required)"
+          },
+          "SSLCertificatePassword": {
+            "default": "SSL Certificate Password (Required)"
+          }
+        }
+      }
+    },
+    "Parameters": {
+      "PlatformType": {
+        "Type": "String",
+        "AllowedPattern": "(^Windows$|^Linux$)",
+        "AllowedValues": [
+          "Windows",
+          "Linux"
+        ],
+        "ConstraintDescription": "You must specify platform type.",
+        "Description": "Choose the platform type. Supported platform types are Windows and Linux. For supported operating systems refer to https://enterprise.arcgis.com/en/server/latest/cloud/amazon/enterprise-aws-supported-os.htm."
+      },
+      "AMIId": {
+        "Type": "String",
+        "Default": "",
+        "AllowedPattern": "(^$|^ami-[a-z0-9]*$|^\\{\\{resolve:ssm:[a-zA-Z0-9_./-]*:\\d\\}\\}$)",
+        "ConstraintDescription": "The AMI ID value can be empty, or it can be an actual AMI ID or AWS SSM paramter name in the format '{{resolve:ssm:[a-zA-Z0-9_.-/]+:\\d+}}'.",
+        "Description": "If you are not sure which AMI to use, leave this field empty and the template will use the latest AMI ID for Windows Server 2022 or Ubuntu Server 20.04 LTS based on the platform type you selected. If you prefer to use AMI of your choice, then you can provide an EC2 instance AMI id in this format 'ami-xxxxxxx'. If you have stored AMI ID in AWS SSM Parameter store, then provide name in this format '{{resolve:ssm:[a-zA-Z0-9_.-/]+:\\d+}}'."
+      },
+      "KeypairName": {
+        "Type": "AWS::EC2::KeyPair::KeyName",
+        "AllowedPattern": "^[\\S]+(?: +[\\S]+)*$",
+        "ConstraintDescription": "The name can include up to 255 ASCII characters. It cannot include leading or trailing spaces.",
+        "Description": "Choose an EC2 KeyPair to allow remote access to the EC2 instances."
+      },
+      "EIPAllocationId": {
+        "Type": "String",
+        "AllowedPattern": "^eipalloc-[a-z0-9]*$",
+        "ConstraintDescription": "Invalid Elastic IP Address. The Elastic IP address value must be in the format 'eipalloc-XXXXXXXX'.",
+        "Description": "Provide the Allocation ID of an Elastic IP address in this format 'eipalloc-XXXXXXXX'."
+      },
+      "VPCId": {
+        "Type": "AWS::EC2::VPC::Id",
+        "AllowedPattern": "^vpc-[a-z0-9]*$",
+        "ConstraintDescription": "Must start with 'vpc-' and can contain alphanumeric lowercase characters only.",
+        "Description": "Choose a VPC ID. Note: All ArcGIS Enterprise components that are part of same deployment must be deployed in the same VPC."
+      },
+      "Subnet": {
+        "Type": "AWS::EC2::Subnet::Id",
+        "AllowedPattern": "^subnet-[a-z0-9]*$",
+        "ConstraintDescription": "Must start with 'subnet-' and can contain alphanumeric lowercase characters only.",
+        "Description": "Choose a subnet ID. The subnet ID that you select must be within the VPC you have selected above."
+      },
+      "SiteDomain": {
+        "Type": "String",
+        "AllowedPattern": "^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([a-zA-Z]|[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9])$",
+        "ConstraintDescription": "The domain name is invalid.",
+        "Description": "Provide the fully qualified domain name for ArcGIS Enterprise deployment. The domain name must already exist and be resolvable. For example, test.abc.com. Contact your IT administrator if you are not sure what domain name to use. This domain name will be used for internal and public URLs, unless you specify a secondary domain."
+      },
+      "SecondarySiteDomain": {
+        "Type": "String",
+        "Default": "",
+        "AllowedPattern": "^$|^(([a-zA-Z]|[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([a-zA-Z]|[a-zA-Z][a-zA-Z0-9-]*[a-zA-Z0-9])$",
+        "ConstraintDescription": "The domain name is invalid.",
+        "Description": "Provide the fully qualified secondary domain name for ArcGIS Enterprise deployment. The domain name must already exist and be resolvable. If specified, this domain name will be used for the private portal URL and server administration URL."
+      },
+      "InstanceType": {
+        "Type": "String",
+        "Default": "m5.2xlarge",
+        "AllowedValues": [
+          "c3.xlarge",
+          "c3.2xlarge",
+          "c3.4xlarge",
+          "c3.8xlarge",
+          "c4.xlarge",
+          "c4.2xlarge",
+          "c4.4xlarge",
+          "c4.8xlarge",
+          "c5.2xlarge",
+          "c5.4xlarge",
+          "c5.9xlarge",
+          "c5.18xlarge",
+          "c5.xlarge",
+          "c5n.xlarge",
+          "c5n.2xlarge",
+          "c5n.4xlarge",
+          "c5n.9xlarge",
+          "c5n.18xlarge",
+          "m3.xlarge",
+          "m3.2xlarge",
+          "m4.xlarge",
+          "m4.2xlarge",
+          "m4.4xlarge",
+          "m4.10xlarge",
+          "m4.16xlarge",
+          "m5.xlarge",
+          "m5.2xlarge",
+          "m5.4xlarge",
+          "m5.12xlarge",
+          "m5.24xlarge",
+          "m5.metal",
+          "m5a.xlarge",
+          "m5a.2xlarge",
+          "m5a.4xlarge",
+          "m5a.12xlarge",
+          "m5a.24xlarge",
+          "p3.2xlarge",
+          "p3.8xlarge",
+          "p3.16xlarge",
+          "p3dn.24xlarge",
+          "p4d.24xlarge",
+          "g6.xlarge",
+          "g6.2xlarge",
+          "g6.4xlarge",
+          "g6.8xlarge",
+          "g6.16xlarge",
+          "gr6.4xlarge",
+          "gr6.8xlarge",
+          "g6.12xlarge",
+          "g6.24xlarge",
+          "g6.48xlarge",
+          "r3.xlarge",
+          "r3.2xlarge",
+          "r3.4xlarge",
+          "r3.8xlarge",
+          "r4.xlarge",
+          "r4.2xlarge",
+          "r4.4xlarge",
+          "r4.8xlarge",
+          "r4.16xlarge",
+          "r5.xlarge",
+          "r5.2xlarge",
+          "r5.4xlarge",
+          "r5.12xlarge",
+          "r5.24xlarge",
+          "r5.metal",
+          "r5a.xlarge",
+          "r5a.2xlarge",
+          "r5a.4xlarge",
+          "r5a.12xlarge",
+          "r5a.24xlarge",
+          "t2.xlarge",
+          "t2.2xlarge",
+          "t3.xlarge",
+          "t3.2xlarge",
+          "x1.16xlarge",
+          "x1.32xlarge",
+          "x1e.xlarge",
+          "x1e.2xlarge",
+          "x1e.4xlarge",
+          "x1e.8xlarge",
+          "x1e.16xlarge",
+          "x1e.32xlarge"
+        ],
+        "Description": "Choose EC2 instance type. Default is m5.2xlarge."
+      },
+      "InstanceDriveSize": {
+        "Type": "Number",
+        "Default": 500,
+        "ConstraintDescription": "Must be between 200 and 2048 GB.",
+        "Description": "Provide size of the root Drive in GB. Default is 500 GB. Minimum is 200 GB. Maximum is 2048 GB.",
+        "MaxValue": 2048,
+        "MinValue": 200
+      },
+      "DeploymentBucket": {
+        "Type": "String",
+        "AllowedPattern": "^([a-z]|(\\d(?!\\d{0,2}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})))([a-z\\d]|(\\.(?!(\\.|-)))|(-(?!\\.))){1,61}[a-z\\d\\.]$",
+        "ConstraintDescription": "A bucket's name can be between 6 and 63 characters long, it can contain lowercase characters, numbers, periods, and dashes, and it must start with a lowercase letter or a number.",
+        "Description": "Provide the name of the AWS S3 bucket that contains your software license files and SSL certificates. This bucket must already exist and contain the license file and SSL certificate for your deployment. You must be the owner of the bucket and it must reside in the same account as your deployment."
+      },
+      "PortalLicenseFileKeyName": {
+        "Type": "String",
+        "AllowedPattern": "^([/\\w\\-\\.]+)+\\.(json)$",
+        "ConstraintDescription": "License file name must be alphanumeric. It can contain dash ('-'), dot ('.'), and underscore ('_') characters. The file name must end with '.json'.",
+        "Description": "Provide the Portal for ArcGIS authorization file object key name. You must upload the license file ('.json' file) to the deployment bucket before launching this stack. You can get the file object key name by navigating to the file within deployment bucket in the AWS S3 console. For example, 'portal.json' or 'resources/licenses/portal/portal.json'."
+      },
+      "UserLicenseTypeId": {
+        "Type": "String",
+        "Default": "",
+        "Description": "Provide portal user license type ID. If you are not sure what type to use, leave this field empty. In this case, 'temporary' user license type ID is used. You must change it later after creating the deployment."
+      },
+      "ServerLicenseFileKeyName": {
+        "Type": "String",
+        "AllowedPattern": "^([/\\w\\-\\.]+)+\\.(ecp|prvc)$",
+        "ConstraintDescription": "License file name must be alphanumeric. It can contain dash ('-'), dot ('.'), and underscore ('_') characters. The file name must end with '.ecp' or '.prvc'.",
+        "Description": "Provide the ArcGIS Server authorization file object key name. You must upload the license file ('.ecp' or '.prvc' file) to the deployment bucket before launching this stack. You can get the file object key name by navigating to the file within the deployment bucket in AWS S3 console. For example, 'server.prvc' or 'resources/licenses/server/server.prvc'."
+      },
+      "SiteadminUserName": {
+        "Type": "String",
+        "Default": "siteadmin",
+        "AllowedPattern": "^[a-zA-Z][a-zA-Z0-9_]{6,}$",
+        "ConstraintDescription": "User name must be 6 or more alphanumeric or underscore (_) characters and must start with a letter.",
+        "Description": "Provide a user name for the portal administrator and ArcGIS Server site administrator. User name must be 6 or more alphanumeric or underscore (_) characters and must start with a letter.",
+        "MinLength": 6
+      },
+      "SiteadminUserPassword": {
+        "Type": "String",
+        "AllowedPattern": "^arn:(aws[a-zA-Z-]*)?:secretsmanager:[a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-\\d{1}:\\d{12}:secret:[a-zA-Z0-9-/_+=.@]*$|^[a-zA-Z0-9_.@]{8,}$",
+        "ConstraintDescription": "Password must be 8 or more alphanumeric, underscore (_), at ('@'), or dot (.) characters.",
+        "Description": "Provide a password for the portal administrator and ArcGIS Server site administrator. You can either type a plain text password or the ARN of your secret ID from AWS Secret Manager. The password must be 8 or more alphanumeric characters and can contain underscore (_), at ('@'), or dot (.) characters. It's a best practice to manage your passwords/secrets through AWS Secret Manager.",
+        "MinLength": 8
+      },
+      "arcgisUserPassword": {
+        "Type": "String",
+        "Default": "",
+        "AllowedPattern": "(^$|^arn:(aws[a-zA-Z-]*)?:secretsmanager:[a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-\\d{1}:\\d{12}:secret:[a-zA-Z0-9-/_+=.@]*$|(?!.*arcgis)(?!.*Arc)(?!.*GIS)(?!.*user)(?!.*account)^((?=.*[a-z])(?=.*[A-Z])(?=.*\\d)|(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9])|(?=.*[a-z])(?=.*\\d)(?=.*[^A-Za-z0-9])|(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]))([A-Za-z\\d@#$%&�*\\-_+=\\[\\]{}|:\\',?~();!]|\\.(?!@)){8,}$)",
+        "ConstraintDescription": "Password must be at least eight characters in length and must contain characters from three of the following four categories: English uppercase characters (A through Z), English lowercase characters (a through z), digits (0 through 9), non-alphabetic characters (for example, !, $, #, %). Password must not contain backslashes (\\) or quotation marks (\"). Password must not contain the user's account name (arcgis) or parts of the user's full name (ArcGIS user account) that exceed two consecutive characters.",
+        "Description": "This password is only required if you deploy on Windows. Enter a password for the 'arcgis' user. You can either enter a plain text password or the ARN of your secret ID from AWS Secret Manager. It's a best practice to manage your passwords/secrets through AWS Secret Manager. Refer to Microsoft Windows documentation for password policies."
+      },
+      "ConfigStoreType": {
+        "Type": "String",
+        "Default": "FileSystem",
+        "AllowedPattern": "(^FileSystem$|^CloudStore$)",
+        "AllowedValues": [
+          "FileSystem",
+          "CloudStore"
+        ],
+        "Description": "Choose the portal content and ArcGIS Server configuration store type. Default is 'FileSystem'."
+      },
+      "PortalWebadaptorName": {
+        "Type": "String",
+        "AllowedPattern": "^[a-zA-Z][a-zA-Z0-9]*$",
+        "ConstraintDescription": "Web adaptor name is invalid. It must begin with a letter and contain only alphanumeric characters.",
+        "Description": "Provide the web adaptor name for the portal. Access to the portal will be through a URL in the format 'https://\u003Cfully qualified domain name\u003E/\u003Cweb adaptor name\u003E'. It must begin with a letter and contain only alphanumeric characters.",
+        "MaxLength": 48,
+        "MinLength": 2
+      },
+      "ServerWebadaptorName": {
+        "Type": "String",
+        "AllowedPattern": "^[a-zA-Z][a-zA-Z0-9]*$",
+        "ConstraintDescription": "Web Adaptor name is invalid. It must begin with a letter and contain only alphanumeric characters.",
+        "Description": "Provide the web adaptor name for the ArcGIS Server site. Access to the ArcGIS Server site will be through a URL in the format 'https://\u003Cfully qualified domain name\u003E/\u003Cweb adaptor name\u003E'. It must begin with a letter and contain only alphanumeric characters.",
+        "MaxLength": 48,
+        "MinLength": 2
+      },
+      "SSLCertificateFileKeyName": {
+        "Type": "String",
+        "AllowedPattern": "^([/\\w\\-\\.]+)+\\.(pfx)$",
+        "ConstraintDescription": "SSLCertificateFileKeyName is invalid. It must be alphanumeric and can contain slash ('/'), dash ('-'), dot ('.'), and underscore ('_') characters. The file name must end with '.pfx'.",
+        "Description": "Provide an SSL certificate from a certifying authority (.pfx file). You must upload the certificate to the deployment bucket before launching this stack. You can get the file object key name by navigating to the file within the deployment bucket in AWS S3 console. For example, 'domainname.pfx' or 'resources/sslcerts/domainname.pfx'."
+      },
+      "SSLCertificatePassword": {
+        "Type": "String",
+        "AllowedPattern": "^arn:(aws[a-zA-Z-]*)?:secretsmanager:[a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-\\d{1}:\\d{12}:secret:[a-zA-Z0-9-/_+=.@]*$|[^\\\"]{1,128}",
+        "ConstraintDescription": "sslcertificatepassword is invalid. It can be an empty string or, if entered, the password must be between 1 and 128 characters and must not contain backslashes (\\) or quotation marks (\").",
+        "Description": "Provide a password for the SSL certificate. You can either type a plain text password or ARN of your secret ID from AWS Secret Manager."
+      }
+    },
+    "Conditions": {
+      "AMICondition": {
+        "Fn::Equals": [
+          {
+            "Ref": "AMIId"
+          },
+          ""
+        ]
+      },
+      "WindowsAMI": {
+        "Fn::Equals": [
+          {
+            "Ref": "PlatformType"
+          },
+          "Windows"
+        ]
+      },
+      "UbuntuAMI": {
+        "Fn::Equals": [
+          {
+            "Ref": "PlatformType"
+          },
+          "Linux"
+        ]
+      },
+      "UseCloudStore": {
+        "Fn::Equals": [
+          {
+            "Ref": "ConfigStoreType"
+          },
+          "CloudStore"
+        ]
+      },
+      "AttachEIP": {
+        "Fn::Not": [
+          {
+            "Fn::Equals": [
+              {
+                "Ref": "EIPAllocationId"
+              },
+              ""
+            ]
+          }
+        ]
+      }
+    },
+    "Resources": {
+      "DeploymentLogs": {
+        "Type": "AWS::Logs::LogGroup",
+        "Properties": {
+          "LogGroupName": {
+            "Fn::Join": [
+              "",
+              [
+                "/ESRI/ArcGIS-Enterprise-AllInOne/",
+                {
+                  "Ref": "AWS::StackName"
+                }
+              ]
+            ]
+          },
+          "RetentionInDays": 731
+        },
+        "UpdateReplacePolicy": "Delete",
+        "DeletionPolicy": "Delete"
+      },
+      "ArcGISEnterpriseIAMRole": {
+        "Type": "AWS::IAM::Role",
+        "Properties": {
+          "AssumeRolePolicyDocument": {
+            "Statement": [
+              {
+                "Action": "sts:AssumeRole",
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": [
+                    "ec2.amazonaws.com",
+                    "ssm.amazonaws.com",
+                    "lambda.amazonaws.com"
+                  ]
+                }
+              }
+            ],
+            "Version": "2012-10-17"
+          },
+          "Path": "/",
+          "Tags": [
+            {
+              "Key": "arcgisenterprise:cloudformation:logical-id",
+              "Value": "Resource"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-id",
+              "Value": {
+                "Ref": "AWS::StackId"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-name",
+              "Value": {
+                "Ref": "AWS::StackName"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-name",
+              "Value": "arcgis-enterprise-allinone.template.json"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-provider",
+              "Value": "Esri"
+            }
+          ]
+        }
+      },
+      "ArcGISEnterpriseIAMPolicy": {
+        "Type": "AWS::IAM::Policy",
+        "Properties": {
+          "PolicyDocument": {
+            "Statement": [
+              {
+                "Action": [
+                  "cloudformation:DescribeStacks",
+                  "cloudformation:DescribeStackResources",
+                  "cloudformation:DescribeStackResource",
+                  "cloudformation:DescribeStackEvents",
+                  "cloudformation:SignalResource"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+              },
+              {
+                "Action": [
+                  "dynamodb:ListTables",
+                  "dynamodb:DescribeTable",
+                  "dynamodb:GetItem",
+                  "dynamodb:GetRecords",
+                  "dynamodb:Query",
+                  "dynamodb:CreateTable",
+                  "dynamodb:DeleteItem",
+                  "dynamodb:DeleteTable",
+                  "dynamodb:PutItem",
+                  "dynamodb:UpdateItem",
+                  "dynamodb:UpdateTable"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+              },
+              {
+                "Action": [
+                  "ec2:CreateImage",
+                  "ec2:CreateTags",
+                  "ec2:DeleteTags",
+                  "ec2:DescribeAddresses",
+                  "ec2:DescribeImages",
+                  "ec2:DescribeInstances",
+                  "ec2:DescribeInstanceStatus",
+                  "ec2:DescribeInstanceTypes",
+                  "ec2:DescribeNetworkInterfaces",
+                  "ec2:DescribeRegions",
+                  "ec2:DescribeSubnets",
+                  "ec2:DescribeTags",
+                  "ec2:AuthorizeSecurityGroupEgress",
+                  "ec2:AuthorizeSecurityGroupIngress",
+                  "ec2:CreateNetworkInterface",
+                  "ec2:DeleteNetworkInterface",
+                  "ec2:ModifyNetworkInterfaceAttribute",
+                  "ec2:ModifyInstanceMetadataOptions",
+                  "ec2:RevokeSecurityGroupEgress",
+                  "ec2:RevokeSecurityGroupIngress",
+                  "ec2:StartInstances",
+                  "ec2:StopInstances",
+                  "ec2:RunInstances",
+                  "ec2:TerminateInstances"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+              },
+              {
+                "Action": [
+                  "ec2messages:GetEndpoint",
+                  "ec2messages:GetMessages",
+                  "ec2messages:AcknowledgeMessage",
+                  "ec2messages:DeleteMessage",
+                  "ec2messages:FailMessage",
+                  "ec2messages:SendReply"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+              },
+              {
+                "Action": "iam:PassRole",
+                "Effect": "Allow",
+                "Resource": {
+                  "Fn::GetAtt": [
+                    "ArcGISEnterpriseIAMRole",
+                    "Arn"
+                  ]
+                }
+              },
+              {
+                "Action": [
+                  "logs:DescribeLogGroups",
+                  "logs:DescribeLogStreams",
+                  "logs:CreateLogGroup",
+                  "logs:CreateLogStream",
+                  "logs:PutLogEvents",
+                  "logs:PutMetricFilter"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+              },
+              {
+                "Action": [
+                  "s3:ListBucket",
+                  "s3:ListMultipartUploadParts",
+                  "s3:GetBucketAcl",
+                  "s3:GetBucketLocation",
+                  "s3:GetBucketPolicy",
+                  "s3:GetObject",
+                  "s3:GetLifecycleConfiguration",
+                  "s3:DeleteObjectTagging",
+                  "s3:PutBucketTagging",
+                  "s3:PutObjectTagging",
+                  "s3:CreateBucket",
+                  "s3:DeleteBucket",
+                  "s3:DeleteObject",
+                  "s3:PutObject",
+                  "s3:PutLifecycleConfiguration"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+              },
+              {
+                "Action": "secretsmanager:GetSecretValue",
+                "Effect": "Allow",
+                "Resource": "*"
+              },
+              {
+                "Action": [
+                  "sqs:GetQueueAttributes",
+                  "sqs:GetQueueUrl",
+                  "sqs:ListDeadLetterSourceQueues",
+                  "sqs:ListMessageMoveTasks",
+                  "sqs:ListQueues",
+                  "sqs:ListQueueTags",
+                  "sqs:ReceiveMessage",
+                  "sqs:CancelMessageMoveTask",
+                  "sqs:ChangeMessageVisibility",
+                  "sqs:CreateQueue",
+                  "sqs:DeleteMessage",
+                  "sqs:DeleteQueue",
+                  "sqs:PurgeQueue",
+                  "sqs:SendMessage",
+                  "sqs:SetQueueAttributes",
+                  "sqs:StartMessageMoveTask",
+                  "sqs:TagQueue",
+                  "sqs:UntagQueue"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+              },
+              {
+                "Action": [
+                  "ssm:ListAssociations",
+                  "ssm:ListInstanceAssociations",
+                  "ssm:DescribeAssociation",
+                  "ssm:DescribeDocument",
+                  "ssm:DescribeInstanceInformation",
+                  "ssm:GetDeployablePatchSnapshotForInstance",
+                  "ssm:GetDocument",
+                  "ssm:GetManifest",
+                  "ssm:GetParameter",
+                  "ssm:GetParameters",
+                  "ssm:ListCommands",
+                  "ssm:ListCommandInvocations",
+                  "ssm:PutConfigurePackageResult",
+                  "ssm:DeleteAssociation",
+                  "ssm:PutComplianceItems",
+                  "ssm:PutInventory",
+                  "ssm:SendCommand",
+                  "ssm:StartAutomationExecution",
+                  "ssm:UpdateAssociationStatus",
+                  "ssm:UpdateInstanceAssociationStatus",
+                  "ssm:UpdateInstanceInformation"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+              },
+              {
+                "Action": [
+                  "ssmmessages:CreateControlChannel",
+                  "ssmmessages:CreateDataChannel",
+                  "ssmmessages:OpenControlChannel",
+                  "ssmmessages:OpenDataChannel"
+                ],
+                "Effect": "Allow",
+                "Resource": "*"
+              }
+            ],
+            "Version": "2012-10-17"
+          },
+          "PolicyName": "ArcGISEnterpriseIAMPolicy",
+          "Roles": [
+            {
+              "Ref": "ArcGISEnterpriseIAMRole"
+            }
+          ]
+        }
+      },
+      "ValidateInputAutomation": {
+        "Type": "AWS::SSM::Document",
+        "Properties": {
+          "Content": {
+            "schemaVersion": "0.3",
+            "description": "Validates the input prameter for ArcGIS Enterprise and ArcGIS Server stacks.",
+            "assumeRole": "{{ AutomationAssumeRole }}",
+            "parameters": {
+              "AutomationAssumeRole": {
+                "type": "String",
+                "description": "(Required) The ARN of the role that allows Automation to perform the actions on your behalf."
+              },
+              "PlatformType": {
+                "type": "String",
+                "description": "(Required) Platform Type.",
+                "allowedValues": [
+                  "Windows",
+                  "Linux"
+                ]
+              },
+              "VPCId": {
+                "type": "String",
+                "description": "(Optional) VPC Id.",
+                "default": ""
+              },
+              "Subnet1Id": {
+                "type": "String",
+                "description": "(Optional) Subnet1 Id.",
+                "default": ""
+              },
+              "Subnet2Id": {
+                "type": "String",
+                "description": "(Optional) Subnet2 Id.",
+                "default": ""
+              },
+              "AMIId": {
+                "type": "String",
+                "description": "(Optional) AMI Id.",
+                "default": ""
+              },
+              "EIPAllocationId": {
+                "type": "String",
+                "description": "(Optional) EIP Allocation Id.",
+                "default": ""
+              },
+              "ELBDNSName": {
+                "type": "String",
+                "description": "(Optional) ELB DNS Name.",
+                "default": ""
+              },
+              "InputELBType": {
+                "type": "String",
+                "description": "(Optional) ELB Type.",
+                "default": ""
+              },
+              "DeploymentBucketName": {
+                "type": "String",
+                "description": "(Optional) Deployment Bucket Name.",
+                "default": ""
+              },
+              "PortalLicenseFile": {
+                "type": "String",
+                "description": "(Optional) Portal License File.",
+                "default": ""
+              },
+              "ServerLicenseFile": {
+                "type": "String",
+                "description": "(Optional) Server License File.",
+                "default": ""
+              },
+              "SSLCertificateFile": {
+                "type": "String",
+                "description": "(Optional) SSL Certificate File.",
+                "default": ""
+              },
+              "SiteadminPasswordValue": {
+                "type": "String",
+                "description": "(Optional) Site Admin Password Value.",
+                "default": ""
+              },
+              "ArcGISUserPasswordValue": {
+                "type": "String",
+                "description": "(Optional) ArcGIS User Password Value.",
+                "default": ""
+              },
+              "SSLCertificatePasswordValue": {
+                "type": "String",
+                "description": "(Optional) SSL Certificate Password Value.",
+                "default": ""
+              },
+              "DeploymentLogs": {
+                "type": "String",
+                "description": "(Required) AWS CloudWatch log group name."
+              },
+              "StackName": {
+                "type": "String",
+                "description": "(Required) AWS CloudFormation stack name."
+              },
+              "WaitCondition": {
+                "type": "String",
+                "description": "(Required) Wait condition for CloudFormation stack."
+              }
+            },
+            "mainSteps": [
+              {
+                "name": "ValidateInputParameters",
+                "action": "aws:executeScript",
+                "isEnd": true,
+                "inputs": {
+                  "Runtime": "PowerShell Core 6.0",
+                  "Script": "$inputPayload = $env:InputPayload | ConvertFrom-Json;\r\n\r\n$StackName = $inputPayload.StackName;\r\n$VPCId = $inputPayload.VPCId;\r\n$Subnet1Id = $inputPayload.Subnet1Id;\r\n$Subnet2Id = $inputPayload.Subnet2Id;\r\n$PlatformType = $inputPayload.PlatformType;\r\n$AMIId = $inputPayload.AMIId;\r\n$EIPAllocationId = $inputPayload.EIPAllocationId;\r\n$ELBDNSName = $inputPayload.ELBDNSName;\r\n$InputELBType = $inputPayload.InputELBType;\r\n$DeploymentBucketName = $inputPayload.DeploymentBucketName;\r\n$PortalLicenseFile = $inputPayload.PortalLicenseFile;\r\n$ServerLicenseFile = $inputPayload.ServerLicenseFile;\r\n$SSLCertificateFile = $inputPayload.SSLCertificateFile;\r\n$SiteadminPasswordValue = $inputPayload.SiteadminPasswordValue;\r\n$ArcGISUserPasswordValue = $inputPayload.ArcGISUserPasswordValue;\r\n$SSLCertificatePasswordValue = $inputPayload.SSLCertificatePasswordValue;\r\n$WaitCondition = $inputPayload.WaitCondition;\r\n$ActionName = $inputPayload.ActionName;\r\n$LogGroupName = $inputPayload.LogGroupName;\r\n$global:RegionId = $inputPayload.RegionId;\r\n\r\n$guid = New-Guid;\r\n$LogStreamName = \"$guid/$ActionName/stderr\"\r\n$global:LogSequenceToken = \"\"\r\n[bool] $global:ErrorFound = $false\r\n\r\nInstall-Module AWS.Tools.CloudFormation -Force\r\nInstall-Module AWS.Tools.CloudWatchLogs -Force\r\nInstall-Module AWS.Tools.EC2 -Force\r\nInstall-Module AWS.Tools.ElasticLoadBalancing -Force\r\nInstall-Module AWS.Tools.ElasticLoadBalancingV2 -Force\r\nInstall-Module AWS.Tools.S3 -Force\r\nInstall-Module AWS.Tools.SecretsManager -Force\r\n\r\nImport-Module AWS.Tools.CloudFormation\r\nImport-Module AWS.Tools.CloudWatchLogs\r\nImport-Module AWS.Tools.EC2\r\nImport-Module AWS.Tools.ElasticLoadBalancing\r\nImport-Module AWS.Tools.ElasticLoadBalancingV2\r\nImport-Module AWS.Tools.S3\r\nImport-Module AWS.Tools.SecretsManager\r\nfunction WriteErrorLog($errormessage) {\r\n  Write-Error $errormessage | format-list -force\r\n  if ([string]::IsNullOrEmpty($global:LogSequenceToken)) {\r\n    $splat = @{\r\n      LogGroupName = $LogGroupName\r\n      LogStreamName =  $LogStreamName\r\n    }\r\n    New-CWLLogStream @splat -Region $global:RegionId\r\n\r\n    $logEntry = New-Object Amazon.CloudWatchLogs.Model.InputLogEvent\r\n    $logEntry.Message = $errormessage\r\n    $logEntry.Timestamp = (Get-Date).ToUniversalTime()\r\n\r\n    $splat = @{\r\n      LogEvent      = $logEntry\r\n      LogGroupName  = $LogGroupName\r\n      LogStreamName = $LogStreamName\r\n    }\r\n    $global:LogSequenceToken = Write-CWLLogEvent @splat -Region $global:RegionId\r\n  } else {\r\n    $logEntry =  New-Object Amazon.CloudWatchLogs.Model.InputLogEvent\r\n    $logEntry.Message = $errormessage\r\n    $logEntry.Timestamp = (Get-Date).ToUniversalTime()\r\n\r\n    $splat = @{\r\n      LogEvent      = $logEntry\r\n      LogGroupName  = $LogGroupName\r\n      LogStreamName = $LogStreamName\r\n      SequenceToken = $global:LogSequenceToken\r\n    }\r\n    $global:LogSequenceToken = Write-CWLLogEvent @splat -Region $global:RegionId\r\n  }\r\n  $global:ErrorFound = $true\r\n  return $global:LogSequenceToken\r\n}\r\n\r\n#check for subnets\r\nif (-not [string]::IsNullOrEmpty($VPCId)) {\r\n  try {\r\n    if ($Subnet1Id -eq $Subnet2Id) { \r\n      $global:LogSequenceToken = WriteErrorLog(\"Subnet1 Id $Subnet1Id and Subnet2 Id $Subnet2Id cannot be same.\")\r\n    }\r\n    if (-not [string]::IsNullOrEmpty($Subnet1Id)) {\r\n      $Subnet1 = (Get-EC2Subnet -SubnetId $Subnet1Id -Region $global:RegionId | Where-Object {$_.VpcId -eq $VPCId}).SubnetId\r\n      if ([string]::IsNullOrEmpty($Subnet1)) {\r\n        $global:LogSequenceToken = WriteErrorLog(\"Subnet1 Id $Subnet1Id does not belong to VPC Id $VPCId.\")\r\n      }\r\n    }\r\n    if (-not [string]::IsNullOrEmpty($Subnet2Id)) {\r\n      $Subnet2 = (Get-EC2Subnet -SubnetId $Subnet2Id -Region $global:RegionId | Where-Object {$_.VpcId -eq $VPCId}).SubnetId\r\n      if ([string]::IsNullOrEmpty($Subnet2)) {\r\n        $global:LogSequenceToken = WriteErrorLog(\"Subnet2 Id $Subnet2Id does not belong to VPC Id $VPCId.\")\r\n      }\r\n    }\r\n  } catch {\r\n    Write-Error $_.Exception.Message | format-list -force\r\n    $global:LogSequenceToken = WriteErrorLog($_.Exception.Message)\r\n  }\r\n}\r\n\r\n#check for AMI Id\r\nif (-not [string]::IsNullOrEmpty($AMIId)) {\r\n  try {\r\n    $PlatformDetails = (Get-EC2Image -ImageId $AMIId -Region $global:RegionId).PlatformDetails\r\n    if (-not $PlatformDetails.ToLower().Contains($PlatformType.ToLower())) {\r\n      $global:LogSequenceToken = WriteErrorLog(\"For specified AMI Id $AMIId platform type is $PlatformDetails. It does not belong to selected platform type $PlatformType. Choose correct platform type or enter correct AMI Id.\")\r\n    }\r\n  } catch {\r\n    Write-Error $_.Exception.Message | format-list -force\r\n    $global:LogSequenceToken = WriteErrorLog($AMIId + \" : \" + $_.Exception.Message)\r\n  }\r\n}\r\n\r\n#check for EIP\r\nif (-not [string]::IsNullOrEmpty($EIPAllocationId)) {\r\n  try {\r\n    $AllocationId = (Get-EC2Address -AllocationId $EIPAllocationId -Region $global:RegionId).AllocationId\r\n    if ([string]::IsNullOrEmpty($AllocationId)) {\r\n      $global:LogSequenceToken = WriteErrorLog(\"EIP allocation id $EIPAllocationId does not exists. Enter correct EIP allocation id.\")\r\n    }\r\n  } catch {\r\n    Write-Error $_.Exception.Message | format-list -force\r\n    $global:LogSequenceToken = WriteErrorLog($EIPAllocationId + \" : \" + $_.Exception.Message)\r\n  }\r\n}\r\n\r\n#check for ELB DNS Name\r\nif (-not [string]::IsNullOrEmpty($ELBDNSName)) {\r\n  try {\r\n    $ELBExists = $false\r\n    $ELBType = (Get-ELB2LoadBalancer -Region $global:RegionId | Where-Object {$_.DNSName -eq $ELBDNSName}).Type.Value\r\n    if (-not [string]::IsNullOrEmpty($ELBType)) {\r\n      if ($ELBType -eq $InputELBType) {\r\n        $ELBExists = $true\r\n      } else {\r\n        $global:LogSequenceToken = WriteErrorLog(\"ELB type for ELBDNSName $ELBDNSName is incorrect. Allowed ELB Type is $InputELBType.\")\r\n      }\r\n    }\r\n    if (-not $ELBExists) {\r\n    $CLBName = (Get-ELBLoadBalancer -Region $global:RegionId | Where-Object {$_.DNSName -eq $ELBDNSName}).LoadBalancerName\r\n      if (-not [string]::IsNullOrEmpty($CLBName)) {\r\n        $ELBExists = $true\r\n      }\r\n    }\r\n    if (-not $ELBExists) {\r\n      $global:LogSequenceToken = WriteErrorLog(\"ELB DNS Name $ELBDNSName does not found. Make sure ELB with specified ELB DNS name does exists.\")\r\n    }\r\n  } catch {\r\n    Write-Error $_.Exception.Message | format-list -force\r\n    $global:LogSequenceToken = WriteErrorLog($ELBDNSName + \" : \" + $_.Exception.Message)\r\n  }\r\n}\r\n\r\n#check for deployment bucket\r\n$DeploymentBucketRegion = ''\r\nif (-not [string]::IsNullOrEmpty($DeploymentBucketName)) {\r\n  try {\r\n    $DeploymentBucketRegion = (Get-S3BucketLocation -BucketName $DeploymentBucketName -Region $global:RegionId).Value\r\n    if ([string]::IsNullOrEmpty($DeploymentBucketRegion)) {\r\n      $DeploymentBucketRegion = 'us-east-1'\r\n    }\r\n  } catch {\r\n    Write-Error $_.Exception.Message | format-list -force\r\n    $global:LogSequenceToken = WriteErrorLog($DeploymentBucketName + \" : \" + $_.Exception.Message)\r\n  }\r\n}\r\n\r\nif (-not [string]::IsNullOrEmpty($DeploymentBucketRegion)) {\r\n  if (-not [string]::IsNullOrEmpty($PortalLicenseFile)) {\r\n    try {\r\n      if(-not (Get-S3Object -BucketName $DeploymentBucketName -Region $DeploymentBucketRegion | Where-Object {$_.Key -eq $PortalLicenseFile})){\r\n        $global:LogSequenceToken = WriteErrorLog(\"Portal license file $PortalLicenseFile does not exists in deployment bucket $DeploymentBucketName.\")\r\n      }\r\n    } catch {\r\n      Write-Error $_.Exception.Message | format-list -force\r\n      $global:LogSequenceToken = WriteErrorLog($PortalLicenseFile + \" : \" + $_.Exception.Message)\r\n    }\r\n  }\r\n  if (-not [string]::IsNullOrEmpty($ServerLicenseFile)) {\r\n    try {\r\n      if(-not (Get-S3Object -BucketName $DeploymentBucketName -Region $DeploymentBucketRegion | Where-Object {$_.Key -eq $ServerLicenseFile})){\r\n        $global:LogSequenceToken = WriteErrorLog(\"Server license file $ServerLicenseFile does not exists in deployment bucket $DeploymentBucketName.\")\r\n      }\r\n    } catch {\r\n      Write-Error $_.Exception.Message | format-list -force\r\n      $global:LogSequenceToken = WriteErrorLog($ServerLicenseFile + \" : \" + $_.Exception.Message)\r\n    }\r\n  }\r\n  if (-not [string]::IsNullOrEmpty($SSLCertificateFile)) {\r\n    try {\r\n      if(-not (Get-S3Object -BucketName $DeploymentBucketName -Region $DeploymentBucketRegion | Where-Object {$_.Key -eq $SSLCertificateFile})){\r\n        $global:LogSequenceToken = WriteErrorLog(\"SSL Certificate file $SSLCertificateFile does not exists in deployment bucket $DeploymentBucketName.\")\r\n      }\r\n    } catch {\r\n      Write-Error $_.Exception.Message | format-list -force\r\n      $global:LogSequenceToken = WriteErrorLog($SSLCertificateFile + \" : \" + $_.Exception.Message)\r\n    }\r\n  }\r\n}\r\n\r\nif (-not [string]::IsNullOrEmpty($SiteadminPasswordValue)) {\r\n  try {\r\n    if ($SiteadminPasswordValue -match '^arn:(aws[a-zA-Z-]*)?:secretsmanager:[a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-\\d{1}:\\d{12}:secret:[a-zA-Z0-9-/_+=.@]*$') {\r\n      $SiteadminPassword = (Get-SECSecretValue -SecretId $SiteadminPasswordValue -Region $global:RegionId).SecretString\r\n      if (([string]::IsNullOrEmpty($SiteadminPassword))) {\r\n        $global:LogSequenceToken = WriteErrorLog(\"Siteadmin user password secret id does not found or not accessible.\")\r\n      } else {\r\n        if (-not ($SiteadminPassword -match '^[a-zA-Z0-9_.@]{8,}$')) {\r\n          $global:LogSequenceToken = WriteErrorLog(\"Siteadmin user password mentioned in the specified secret does not match password policies. Refer to ArcGIS Enterprise CloudFomration document for password policies.\")\r\n        }\r\n      }\r\n    }\r\n  } catch {\r\n    Write-Error $_.Exception.Message | format-list -force\r\n    $global:LogSequenceToken = WriteErrorLog(\"SiteAdmin Password : \" + $_.Exception.Message)\r\n  }\r\n}\r\n\r\nif (([string]::IsNullOrEmpty($ArcGISUserPasswordValue)) -and ($PlatformType -eq 'Windows')) {\r\n  $global:LogSequenceToken = WriteErrorLog(\"'arcgisUserPassword' parameter value cannot be empty if platform type is 'Windows'.\")\r\n}\r\n\r\nif (-not [string]::IsNullOrEmpty($ArcGISUserPasswordValue)) {\r\n  try {\r\n    if ($ArcGISUserPasswordValue -match '^arn:(aws[a-zA-Z-]*)?:secretsmanager:[a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-\\d{1}:\\d{12}:secret:[a-zA-Z0-9-/_+=.@]*$') {\r\n      $ArcGISUserPassword = (Get-SECSecretValue -SecretId $ArcGISUserPasswordValue -Region $global:RegionId).SecretString\r\n      if (([string]::IsNullOrEmpty($ArcGISUserPassword))) {\r\n        $global:LogSequenceToken = WriteErrorLog(\"'arcgis' user password secret id does not found or not accessible.\")\r\n      } else {\r\n        if (-not ($ArcGISUserPassword -match \"(?!.*arcgis)(?!.*Arc)(?!.*GIS)(?!.*user)(?!.*account)^((?=.*[a-z])(?=.*[A-Z])(?=.*\\d)|(?=.*[a-z])(?=.*[A-Z])(?=.*[^A-Za-z0-9])|(?=.*[a-z])(?=.*\\d)(?=.*[^A-Za-z0-9])|(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]))([A-Za-z\\d@#$%&�*\\-_+=\\[\\]{}|:\\',?~();!]|\\.(?!@)){8,}$\")) {\r\n          $global:LogSequenceToken = WriteErrorLog(\"'arcgis' user password mentioned in the specified secret does not match password policies. Refer to ArcGIS Enterprise CloudFomration document for password policies.\")\r\n        }\r\n      }\r\n    }\r\n  } catch {\r\n    Write-Error $_.Exception.Message | format-list -force\r\n    $global:LogSequenceToken = WriteErrorLog(\"'arcgis' user Password : \" + $_.Exception.Message)\r\n  }\r\n}\r\n\r\nif (-not [string]::IsNullOrEmpty($SSLCertificatePasswordValue)) {\r\n  try {\r\n    if ($SSLCertificatePasswordValue -match '^arn:(aws[a-zA-Z-]*)?:secretsmanager:[a-z]{2}((-gov)|(-iso(b?)))?-[a-z]+-\\d{1}:\\d{12}:secret:[a-zA-Z0-9-/_+=.@]*$') {\r\n      $SSLCertificatePassword = (Get-SECSecretValue -SecretId $SSLCertificatePasswordValue -Region $global:RegionId).SecretString\r\n      if (([string]::IsNullOrEmpty($SSLCertificatePassword))) {\r\n        $global:LogSequenceToken = WriteErrorLog(\"SSL Certificate password secret id does not found or not accessible.\")\r\n      } else {\r\n        if (-not ($SSLCertificatePassword -match '[^\\\"]{1,128}')) {\r\n          $global:LogSequenceToken = WriteErrorLog(\"SSL Certificate password mentioned in the specified secret does not match password policies. Refer to ArcGIS Enterprise CloudFomration document for password policies.\")\r\n        }\r\n      }\r\n    }\r\n  } catch {\r\n    Write-Error $_.Exception.Message | format-list -force\r\n    $global:LogSequenceToken = WriteErrorLog(\"SSL Certificate Password : \" + $_.Exception.Message)\r\n  }\r\n}\r\n\r\nif ($global:ErrorFound) {\r\n  $Status = \"FAILURE\"\r\n  $UniqueId = \"FAILURE\"\r\n} else {\r\n  $Status = \"SUCCESS\"\r\n  $UniqueId = \"SUCCESS\"\r\n}\r\n\r\nif (-not ([string]::IsNullOrEmpty($WaitCondition)))\r\n{\r\n  $stackstatus=((Get-CFNStack -StackName $StackName -Region $global:RegionId).StackStatus).Value\r\n  if ($stackstatus -eq \"CREATE_IN_PROGRESS\") \r\n  {\r\n    try {\r\n      Send-CFNResourceSignal -StackName $StackName -LogicalResourceId $WaitCondition -Status $Status -UniqueId $UniqueId -Region $global:RegionId\r\n    }\r\n    catch\r\n    {\r\n      Write-Error $_.Exception | format-list -force\r\n      $global:LogSequenceToken = WriteErrorLog(\"Failed to send signal back to CloudFormation stack. Refer to deployment logs $LogGroupName for error details.\" + $_.Exception)\r\n      Write-Error \"Failed to send signal back to CloudFormation stack.\" -ErrorAction Stop\r\n    }\r\n  }\r\n  if ($Status -eq \"FAILURE\") {\r\n    $global:LogSequenceToken = WriteErrorLog(\"Failed to validate input parameter for $StackName CloudFormation stack.\")\r\n    Write-Error \"Failed to validate input parameter for $StackName CloudFormation stack. Refer to deployment logs $LogGroupName for error details.\" -ErrorAction Stop\r\n  }\r\n}\r\n\r\n",
+                  "InputPayload": {
+                    "StackName": "{{StackName}}",
+                    "RegionId": "{{global:REGION}}",
+                    "VPCId": "{{VPCId}}",
+                    "Subnet1Id": "{{Subnet1Id}}",
+                    "Subnet2Id": "{{Subnet2Id}}",
+                    "PlatformType": "{{PlatformType}}",
+                    "AMIId": "{{AMIId}}",
+                    "EIPAllocationId": "{{EIPAllocationId}}",
+                    "ELBDNSName": "{{ELBDNSName}}",
+                    "InputELBType": "{{InputELBType}}",
+                    "DeploymentBucketName": "{{DeploymentBucketName}}",
+                    "PortalLicenseFile": "{{PortalLicenseFile}}",
+                    "ServerLicenseFile": "{{ServerLicenseFile}}",
+                    "SSLCertificateFile": "{{SSLCertificateFile}}",
+                    "SiteadminPasswordValue": "{{SiteadminPasswordValue}}",
+                    "ArcGISUserPasswordValue": "{{ArcGISUserPasswordValue}}",
+                    "SSLCertificatePasswordValue": "{{SSLCertificatePasswordValue}}",
+                    "WaitCondition": "{{WaitCondition}}",
+                    "ActionName": "ValidateInputParameters",
+                    "LogGroupName": "{{DeploymentLogs}}"
+                  }
+                }
+              }
+            ]
+          },
+          "DocumentType": "Automation",
+          "Tags": [
+            {
+              "Key": "arcgisenterprise:cloudformation:logical-id",
+              "Value": "ValidateInputAutomation"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-id",
+              "Value": {
+                "Ref": "AWS::StackId"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-name",
+              "Value": {
+                "Ref": "AWS::StackName"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-name",
+              "Value": "arcgis-enterprise-allinone.template.json"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-provider",
+              "Value": "Esri"
+            }
+          ]
+        }
+      },
+      "ValidateInputWaitCondition": {
+        "Type": "AWS::CloudFormation::WaitCondition",
+        "DependsOn": [
+          "ArcGISEnterpriseIAMPolicy",
+          "ArcGISEnterpriseIAMRole"
+        ],
+        "CreationPolicy": {
+          "ResourceSignal": {
+            "Count": 1,
+            "Timeout": "PT1H"
+          }
+        }
+      },
+      "ValidateInputAssociation": {
+        "Type": "AWS::SSM::Association",
+        "Properties": {
+          "Name": {
+            "Ref": "ValidateInputAutomation"
+          },
+          "Parameters": {
+            "AutomationAssumeRole": [
+              {
+                "Fn::GetAtt": [
+                  "ArcGISEnterpriseIAMRole",
+                  "Arn"
+                ]
+              }
+            ],
+            "PlatformType": [
+              {
+                "Ref": "PlatformType"
+              }
+            ],
+            "VPCId": [
+              {
+                "Ref": "VPCId"
+              }
+            ],
+            "Subnet1Id": [
+              {
+                "Ref": "Subnet"
+              }
+            ],
+            "Subnet2Id": [
+              ""
+            ],
+            "AMIId": [
+              {
+                "Ref": "AMIId"
+              }
+            ],
+            "EIPAllocationId": [
+              {
+                "Ref": "EIPAllocationId"
+              }
+            ],
+            "ELBDNSName": [
+              ""
+            ],
+            "InputELBType": [
+              ""
+            ],
+            "DeploymentBucketName": [
+              {
+                "Ref": "DeploymentBucket"
+              }
+            ],
+            "PortalLicenseFile": [
+              {
+                "Ref": "PortalLicenseFileKeyName"
+              }
+            ],
+            "ServerLicenseFile": [
+              {
+                "Ref": "ServerLicenseFileKeyName"
+              }
+            ],
+            "SSLCertificateFile": [
+              {
+                "Ref": "SSLCertificateFileKeyName"
+              }
+            ],
+            "SiteadminPasswordValue": [
+              {
+                "Ref": "SiteadminUserPassword"
+              }
+            ],
+            "ArcGISUserPasswordValue": [
+              {
+                "Ref": "arcgisUserPassword"
+              }
+            ],
+            "SSLCertificatePasswordValue": [
+              {
+                "Ref": "SSLCertificatePassword"
+              }
+            ],
+            "DeploymentLogs": [
+              {
+                "Ref": "DeploymentLogs"
+              }
+            ],
+            "StackName": [
+              {
+                "Ref": "AWS::StackName"
+              }
+            ],
+            "WaitCondition": [
+              "ValidateInputWaitCondition"
+            ]
+          }
+        },
+        "DependsOn": [
+          "ArcGISEnterpriseIAMPolicy",
+          "ArcGISEnterpriseIAMRole"
+        ]
+      },
+      "StopStackFunction": {
+        "Type": "AWS::Lambda::Function",
+        "Properties": {
+          "Code": {
+            "ZipFile": "import os\r\nimport boto3\r\nimport logging\r\nimport time\r\n\r\nlogger = logging.getLogger()\r\n\r\n# Stops EC2 instances of AllInOne CloudFormation stack.\r\ndef stop_allinone_stack(event, context):\r\n    stack_name = os.environ['StackName']\r\n\r\n    cf = boto3.client('cloudformation')\r\n    ec2 = boto3.client('ec2')\r\n\r\n    # Stop AllInOne instance \r\n    allinone_resource = cf.describe_stack_resource(StackName = stack_name,\r\n                                                   LogicalResourceId = 'AllInOneEC2Instance')\r\n\r\n    allinone_instance_id = allinone_resource['StackResourceDetail']['PhysicalResourceId']\r\n\r\n    ec2.stop_instances(InstanceIds = [allinone_instance_id])\r\n\r\n    logger.info('CloudFormation stack {} stack stopped'.format(stack_name))\r\n\r\n# Starts EC2 instances of AllInOne CloudFormation stack.\r\ndef start_allinone_stack(event, context):\r\n    stack_name = os.environ['StackName']\r\n\r\n    cf = boto3.client('cloudformation')\r\n    ec2 = boto3.client('ec2')\r\n    autoscaling = boto3.client('autoscaling')\r\n\r\n    # Start AllInOne instance\r\n\r\n    allinone_resource = cf.describe_stack_resource(\r\n        StackName = stack_name,\r\n        LogicalResourceId = 'AllInOneEC2Instance')\r\n\r\n    allinone_instance_id = allinone_resource['StackResourceDetail']['PhysicalResourceId']\r\n\r\n    ec2.start_instances(InstanceIds = [allinone_instance_id])\r\n\r\n    logger.info('CloudFormation stack {} stack started'.format(stack_name))\r\n"
+          },
+          "Role": {
+            "Fn::GetAtt": [
+              "ArcGISEnterpriseIAMRole",
+              "Arn"
+            ]
+          },
+          "Description": "Stops EC2 instance created by this CloudFormation stack",
+          "Environment": {
+            "Variables": {
+              "StackName": {
+                "Ref": "AWS::StackName"
+              }
+            }
+          },
+          "Handler": "index.stop_allinone_stack",
+          "Runtime": "python3.10",
+          "Tags": [
+            {
+              "Key": "arcgisenterprise:cloudformation:logical-id",
+              "Value": "StopStackFunction"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-id",
+              "Value": {
+                "Ref": "AWS::StackId"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-name",
+              "Value": {
+                "Ref": "AWS::StackName"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-name",
+              "Value": "arcgis-enterprise-allinone.template.json"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-provider",
+              "Value": "Esri"
+            }
+          ],
+          "Timeout": 300
+        }
+      },
+      "StartStackFunction": {
+        "Type": "AWS::Lambda::Function",
+        "Properties": {
+          "Code": {
+            "ZipFile": "import os\r\nimport boto3\r\nimport logging\r\nimport time\r\n\r\nlogger = logging.getLogger()\r\n\r\n# Stops EC2 instances of AllInOne CloudFormation stack.\r\ndef stop_allinone_stack(event, context):\r\n    stack_name = os.environ['StackName']\r\n\r\n    cf = boto3.client('cloudformation')\r\n    ec2 = boto3.client('ec2')\r\n\r\n    # Stop AllInOne instance \r\n    allinone_resource = cf.describe_stack_resource(StackName = stack_name,\r\n                                                   LogicalResourceId = 'AllInOneEC2Instance')\r\n\r\n    allinone_instance_id = allinone_resource['StackResourceDetail']['PhysicalResourceId']\r\n\r\n    ec2.stop_instances(InstanceIds = [allinone_instance_id])\r\n\r\n    logger.info('CloudFormation stack {} stack stopped'.format(stack_name))\r\n\r\n# Starts EC2 instances of AllInOne CloudFormation stack.\r\ndef start_allinone_stack(event, context):\r\n    stack_name = os.environ['StackName']\r\n\r\n    cf = boto3.client('cloudformation')\r\n    ec2 = boto3.client('ec2')\r\n    autoscaling = boto3.client('autoscaling')\r\n\r\n    # Start AllInOne instance\r\n\r\n    allinone_resource = cf.describe_stack_resource(\r\n        StackName = stack_name,\r\n        LogicalResourceId = 'AllInOneEC2Instance')\r\n\r\n    allinone_instance_id = allinone_resource['StackResourceDetail']['PhysicalResourceId']\r\n\r\n    ec2.start_instances(InstanceIds = [allinone_instance_id])\r\n\r\n    logger.info('CloudFormation stack {} stack started'.format(stack_name))\r\n"
+          },
+          "Role": {
+            "Fn::GetAtt": [
+              "ArcGISEnterpriseIAMRole",
+              "Arn"
+            ]
+          },
+          "Description": "Starts EC2 instance created by this CloudFormation stack",
+          "Environment": {
+            "Variables": {
+              "StackName": {
+                "Ref": "AWS::StackName"
+              }
+            }
+          },
+          "Handler": "index.start_allinone_stack",
+          "Runtime": "python3.10",
+          "Tags": [
+            {
+              "Key": "arcgisenterprise:cloudformation:logical-id",
+              "Value": "StartStackFunction"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-id",
+              "Value": {
+                "Ref": "AWS::StackId"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-name",
+              "Value": {
+                "Ref": "AWS::StackName"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-name",
+              "Value": "arcgis-enterprise-allinone.template.json"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-provider",
+              "Value": "Esri"
+            }
+          ],
+          "Timeout": 300
+        }
+      },
+      "SecurityGroup": {
+        "Type": "AWS::EC2::SecurityGroup",
+        "Properties": {
+          "GroupDescription": {
+            "Ref": "AWS::StackName"
+          },
+          "SecurityGroupIngress": [
+            {
+              "CidrIp": "0.0.0.0/0",
+              "FromPort": 80,
+              "IpProtocol": "tcp",
+              "ToPort": 80
+            },
+            {
+              "CidrIp": "0.0.0.0/0",
+              "FromPort": 443,
+              "IpProtocol": "tcp",
+              "ToPort": 443
+            }
+          ],
+          "Tags": [
+            {
+              "Key": "arcgisenterprise:cloudformation:logical-id",
+              "Value": "SecurityGroup"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-id",
+              "Value": {
+                "Ref": "AWS::StackId"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-name",
+              "Value": {
+                "Ref": "AWS::StackName"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-name",
+              "Value": "arcgis-enterprise-allinone.template.json"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-provider",
+              "Value": "Esri"
+            },
+            {
+              "Key": "Name",
+              "Value": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Ref": "AWS::StackName"
+                    },
+                    "-SG"
+                  ]
+                ]
+              }
+            }
+          ],
+          "VpcId": {
+            "Ref": "VPCId"
+          }
+        }
+      },
+      "SecurityGroupIngress": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "IpProtocol": "tcp",
+          "FromPort": 0,
+          "GroupId": {
+            "Ref": "SecurityGroup"
+          },
+          "SourceSecurityGroupId": {
+            "Ref": "SecurityGroup"
+          },
+          "ToPort": 65535
+        }
+      },
+      "IAMInstanceProfile": {
+        "Type": "AWS::IAM::InstanceProfile",
+        "Properties": {
+          "Roles": [
+            {
+              "Ref": "ArcGISEnterpriseIAMRole"
+            }
+          ],
+          "Path": "/"
+        }
+      },
+      "EC2InstanceLaunchTemplate": {
+        "Type": "AWS::EC2::LaunchTemplate",
+        "Properties": {
+          "LaunchTemplateData": {
+            "BlockDeviceMappings": [
+              {
+                "DeviceName": "/dev/sda1",
+                "Ebs": {
+                  "DeleteOnTermination": true,
+                  "VolumeSize": {
+                    "Ref": "InstanceDriveSize"
+                  },
+                  "VolumeType": "gp2"
+                }
+              }
+            ],
+            "IamInstanceProfile": {
+              "Arn": {
+                "Fn::GetAtt": [
+                  "IAMInstanceProfile",
+                  "Arn"
+                ]
+              }
+            },
+            "ImageId": {
+              "Fn::If": [
+                "AMICondition",
+                {
+                  "Fn::If": [
+                    "WindowsAMI",
+                    "{{resolve:ssm:/aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base:1}}",
+                    "{{resolve:ssm:/aws/service/canonical/ubuntu/server/22.04/stable/current/amd64/hvm/ebs-gp2/ami-id:1}}"
+                  ]
+                },
+                {
+                  "Ref": "AMIId"
+                }
+              ]
+            },
+            "InstanceType": {
+              "Ref": "InstanceType"
+            },
+            "KeyName": {
+              "Ref": "KeypairName"
+            },
+            "MetadataOptions": {
+              "HttpEndpoint": "enabled",
+              "HttpTokens": "required"
+            },
+            "NetworkInterfaces": [
+              {
+                "AssociatePublicIpAddress": true,
+                "DeleteOnTermination": true,
+                "DeviceIndex": 0,
+                "Groups": [
+                  {
+                    "Ref": "SecurityGroup"
+                  }
+                ],
+                "SubnetId": {
+                  "Ref": "Subnet"
+                }
+              }
+            ]
+          }
+        },
+        "DependsOn": [
+          "ValidateInputWaitCondition"
+        ]
+      },
+      "AllInOneEC2Instance": {
+        "Type": "AWS::EC2::Instance",
+        "Properties": {
+          "LaunchTemplate": {
+            "LaunchTemplateId": {
+              "Ref": "EC2InstanceLaunchTemplate"
+            },
+            "Version": {
+              "Fn::GetAtt": [
+                "EC2InstanceLaunchTemplate",
+                "LatestVersionNumber"
+              ]
+            }
+          },
+          "Monitoring": true,
+          "Tags": [
+            {
+              "Key": "arcgisenterprise:cloudformation:logical-id",
+              "Value": "AllInOneEC2Instance"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-id",
+              "Value": {
+                "Ref": "AWS::StackId"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-name",
+              "Value": {
+                "Ref": "AWS::StackName"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-name",
+              "Value": "arcgis-enterprise-allinone.template.json"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-provider",
+              "Value": "Esri"
+            },
+            {
+              "Key": "Name",
+              "Value": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Ref": "AWS::StackName"
+                    },
+                    "-Enterprise"
+                  ]
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "EIPAssociation": {
+        "Type": "AWS::EC2::EIPAssociation",
+        "Properties": {
+          "AllocationId": {
+            "Ref": "EIPAllocationId"
+          },
+          "InstanceId": {
+            "Ref": "AllInOneEC2Instance"
+          }
+        },
+        "Condition": "AttachEIP"
+      },
+      "EC2InstanceRecoveryAlarm": {
+        "Type": "AWS::CloudWatch::Alarm",
+        "Properties": {
+          "ComparisonOperator": "GreaterThanThreshold",
+          "EvaluationPeriods": 5,
+          "AlarmActions": [
+            {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:",
+                  {
+                    "Ref": "AWS::Partition"
+                  },
+                  ":automate:",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ":ec2:recover"
+                ]
+              ]
+            }
+          ],
+          "AlarmDescription": "Trigger a recovery when instance status check fails for 5 consecutive minutes.",
+          "Dimensions": [
+            {
+              "Name": "InstanceId",
+              "Value": {
+                "Ref": "AllInOneEC2Instance"
+              }
+            }
+          ],
+          "MetricName": "StatusCheckFailed_System",
+          "Namespace": "AWS/EC2",
+          "Period": 60,
+          "Statistic": "Minimum",
+          "Threshold": 0
+        }
+      },
+      "PortalContentBucket": {
+        "Type": "AWS::S3::Bucket",
+        "Properties": {
+          "Tags": [
+            {
+              "Key": "arcgisenterprise:cloudformation:logical-id",
+              "Value": "Resource"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-id",
+              "Value": {
+                "Ref": "AWS::StackId"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-name",
+              "Value": {
+                "Ref": "AWS::StackName"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-name",
+              "Value": "arcgis-enterprise-allinone.template.json"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-provider",
+              "Value": "Esri"
+            }
+          ]
+        },
+        "DependsOn": [
+          "ValidateInputWaitCondition"
+        ],
+        "UpdateReplacePolicy": "Retain",
+        "DeletionPolicy": "Retain",
+        "Condition": "UseCloudStore"
+      },
+      "DeleteConfigStoreFunction": {
+        "Type": "AWS::Lambda::Function",
+        "Properties": {
+          "Code": {
+            "ZipFile": "import cfnresponse\r\nimport boto3\r\nimport logging\r\nimport json\r\n\r\ndef delete_server_config_store(event, context):\r\n    print('Received request:\\n%s' % json.dumps(event, indent=4))\r\n    properties = event['ResourceProperties']\r\n    if event['RequestType'] == 'Delete':\r\n        response = {}\r\n        namespace = properties['Namespace']\r\n        try:\r\n            dynamodb = boto3.resource('dynamodb')\r\n            s3 = boto3.resource('s3')\r\n\r\n            logger = logging.getLogger()\r\n            logger.setLevel(logging.INFO)\r\n\r\n            config_stores_table = dynamodb.Table('ArcGISConfigStores')\r\n            config_store_item = config_stores_table.get_item(Key = {'Namespace': namespace})\r\n            db_table_name=\"\"\r\n            s3_bucket_name=\"\"\r\n\r\n            try:\r\n                db_table_name = config_store_item['Item']['DBTableName']\r\n            except Exception as e:\r\n                logger.error('Failed to retrieve DynamoDB table. {}'.format(e))\r\n\r\n            try:\r\n                s3_bucket_name = config_store_item['Item']['S3BucketName']\r\n            except Exception as e:\r\n                logger.error('Failed to retrieve S3 bucket. {}'.format(e))\r\n\r\n            if db_table_name:\r\n                try:\r\n                    logger.info('DynamoDB table name is {}.'.format(db_table_name))\r\n                    dynamodb.Table(db_table_name).delete()\r\n                    logger.info('DynamoDB table {} deleted.'.format(db_table_name))\r\n                except Exception as e:\r\n                    logger.error('Failed to delete DynamoDB table {}. {}'.format(db_table_name, e))\r\n                try:\r\n                    logger.info('DynamoDB table name namespace is {}.'.format(namespace))\r\n                    config_stores_table.delete_item(Key = {'Namespace': namespace})\r\n                    logger.info('DynamoDB table namespace {} deleted.'.format(namespace))\r\n                except Exception as e:\r\n                    logger.error('Failed to delete DynamoDB table namepsace {} item. {}'.format(namespace, e))\r\n\r\n            if s3_bucket_name:\r\n                try:\r\n                    logger.info('ArcGIS Server content S3 bucket name is {}.'.format(s3_bucket_name))\r\n                    s3_bucket = s3.Bucket(s3_bucket_name)\r\n                    for key in s3_bucket.objects.all():\r\n                        key.delete()\r\n                    s3_bucket.delete()\r\n                    logger.info('ArcGIS Server content S3 bucket {} deleted.'.format(s3_bucket_name))\r\n                except Exception as e:\r\n                    logger.error('Failed to delete ArcGIS Server content S3 bucket {}. {}'.format(s3_bucket_name, e))\r\n\r\n            response['Message'] = 'ArcGIS Server config store with namespace {} deleted.'.format(namespace)\r\n        except Exception as e:\r\n            response['ErrorMessage'] = 'Failed to delete ArcGIS Server config store with namespace {}. {}'.format(namespace, e)\r\n            cfnresponse.send(event, context, cfnresponse.SUCCESS, response)\r\n        else:\r\n            cfnresponse.send(event, context, cfnresponse.SUCCESS, response)\r\n    elif event['RequestType'] in ['Create', 'Update']:\r\n        cfnresponse.send(event, context, cfnresponse.SUCCESS, {})"
+          },
+          "Role": {
+            "Fn::GetAtt": [
+              "ArcGISEnterpriseIAMRole",
+              "Arn"
+            ]
+          },
+          "Description": "Delete the ArcGIS Server config store.",
+          "Handler": "index.delete_server_config_store",
+          "Runtime": "python3.10",
+          "Tags": [
+            {
+              "Key": "arcgisenterprise:cloudformation:logical-id",
+              "Value": "DeleteConfigStoreFunction"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-id",
+              "Value": {
+                "Ref": "AWS::StackId"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-name",
+              "Value": {
+                "Ref": "AWS::StackName"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-name",
+              "Value": "arcgis-enterprise-allinone.template.json"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-provider",
+              "Value": "Esri"
+            }
+          ],
+          "Timeout": 900
+        },
+        "Condition": "UseCloudStore"
+      },
+      "DeleteConfigStore": {
+        "Type": "Custom::DeleteConfigStore",
+        "Properties": {
+          "ServiceToken": {
+            "Fn::GetAtt": [
+              "DeleteConfigStoreFunction",
+              "Arn"
+            ]
+          },
+          "Namespace": {
+            "Ref": "AWS::StackName"
+          }
+        },
+        "UpdateReplacePolicy": "Delete",
+        "DeletionPolicy": "Delete",
+        "Condition": "UseCloudStore"
+      },
+      "ArcGISEnterpriseAllInOneCommandDocument": {
+        "Type": "AWS::SSM::Document",
+        "Properties": {
+          "Content": {
+            "schemaVersion": "2.2",
+            "description": "Execute composite or nested Systems Manager documents (SSM documents) stored in a remote location.",
+            "parameters": {
+              "documentUrl": {
+                "description": "(Required) Specify the SSM document URL that will be downloaded.",
+                "type": "String"
+              },
+              "documentParameters": {
+                "description": "(Optional) Parameters to be passed to the SSM document that will be executed.",
+                "type": "StringMap",
+                "displayType": "textarea",
+                "default": {
+  
+                }
+              }
+            },
+            "mainSteps": [
+              {
+                "action": "aws:runPowerShellScript",
+                "name": "runPowerShellScript",
+                "precondition": {
+                  "StringEquals": [
+                    "platformType",
+                    "Windows"
+                  ]
+                },
+                "inputs": {
+                  "timeoutSeconds": "1800",
+                  "runCommand": [
+                    "$tempfolderpath = (Join-Path 'C:\\Windows\\Temp\\esri' 'ssm')",
+                    "if (-not (Test-Path -Path $tempfolderpath))",
+                    "{",
+                    "   New-Item -ItemType Directory -Path $tempfolderpath",
+                    "}",
+                    "$ssmdocumentpath = (Join-Path $tempfolderpath 'ssmdocument.json')",
+                    "if (Test-Path -Path $ssmdocumentpath -PathType Leaf) {",
+                    "   Remove-Item $ssmdocumentpath",
+                    "}",
+                    "Invoke-WebRequest -Uri {{ documentUrl }} -OutFile $ssmdocumentpath"
+                  ]
+                }
+              },
+              {
+                "action": "aws:runDocument",
+                "name": "runDocumentOnWindows",
+                "precondition": {
+                  "StringEquals": [
+                    "platformType",
+                    "Windows"
+                  ]
+                },
+                "inputs": {
+                  "documentType": "LocalPath",
+                  "documentPath": "C:\\Windows\\temp\\esri\\ssm\\ssmdocument.json",
+                  "documentParameters": "{{ documentParameters }}"
+                }
+              },
+              {
+                "action": "aws:runShellScript",
+                "name": "runShellScript",
+                "precondition": {
+                  "StringEquals": [
+                    "platformType",
+                    "Linux"
+                  ]
+                },
+                "inputs": {
+                  "timeoutSeconds": "1800",
+                  "runCommand": [
+                    "curl -s -f \"{{ documentUrl }}\" \u003E /tmp/ssmdocument.json"
+                  ]
+                }
+              },
+              {
+                "action": "aws:runDocument",
+                "name": "runDocumentOnLinux",
+                "precondition": {
+                  "StringEquals": [
+                    "platformType",
+                    "Linux"
+                  ]
+                },
+                "inputs": {
+                  "documentType": "LocalPath",
+                  "documentPath": "/tmp/ssmdocument.json",
+                  "documentParameters": "{{ documentParameters }}"
+                }
+              }
+            ]
+          },
+          "DocumentType": "Command",
+          "Tags": [
+            {
+              "Key": "arcgisenterprise:cloudformation:logical-id",
+              "Value": "Automation"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-id",
+              "Value": {
+                "Ref": "AWS::StackId"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-name",
+              "Value": {
+                "Ref": "AWS::StackName"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-name",
+              "Value": "arcgis-enterprise-allinone.template.json"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-provider",
+              "Value": "Esri"
+            }
+          ]
+        }
+      },
+      "ArcGISEnterpriseAllInOneAutomation": {
+        "Type": "AWS::SSM::Document",
+        "Properties": {
+          "Content": {
+            "schemaVersion": "0.3",
+            "description": "Installs and configures ArcGIS Enterprise on single machine deployment.",
+            "assumeRole": "{{ AutomationAssumeRole }}",
+            "parameters": {
+              "AutomationAssumeRole": {
+                "type": "String",
+                "description": "(Required) The ARN of the role that allows Automation to perform the actions on your behalf."
+              },
+              "PlatformType": {
+                "type": "String",
+                "description": "(Required) Platform type.",
+                "allowedValues": [
+                  "Windows",
+                  "Linux"
+                ]
+              },
+              "DeploymentId": {
+                "type": "String",
+                "description": "(Required) Unique deployment id from your ArcGIS Enterprise deployment. It must be alphanumeric string."
+              },
+              "AWSCliBundleUrl": {
+                "type": "String",
+                "description": "(Conditional) AWS CLI Bundle URL. Required if platform type is Linux."
+              },
+              "CincClientUrlWin": {
+                "type": "String",
+                "description": "(Required) URL of CINC client setup for Windows."
+              },
+              "CincClientUrlLin": {
+                "type": "String",
+                "description": "(Required) URL of CINC client setup for Linux."
+              },
+              "CookbooksUrl": {
+                "type": "String",
+                "description": "(Required) ArcGIS Chef cookbooks URL."
+              },
+              "ArcGISVersion": {
+                "type": "String",
+                "description": "(Required) ArcGIS Server version."
+              },
+              "DeploymentBucket": {
+                "type": "String",
+                "description": "(Required) AWS S3 bucket with authorization files and SSL certificates."
+              },
+              "PortalLicenseFile": {
+                "type": "String",
+                "description": "(Required) AWS S3 key of Portal for ArcGIS license authorisation file."
+              },
+              "UserLicenseTypeId": {
+                "type": "String",
+                "description": "(Required) ArcGIS Portal Level 2 id."
+              },
+              "ServerLicenseFile": {
+                "type": "String",
+                "description": "(Required) AWS S3 key of ArcGIS Server license authorisation file."
+              },
+              "SiteAdmin": {
+                "type": "String",
+                "description": "(Required) ArcGIS Enterprise primary site administrator username."
+              },
+              "SiteAdminPassword": {
+                "type": "String",
+                "description": "(Required) ArcGIS Enterprise primary site administrator password."
+              },
+              "RunAsUserUserName": {
+                "type": "String",
+                "description": "(Optional) ArcGIS Enterprise user name.",
+                "default": "arcgis"
+              },
+              "RunAsUserPassword": {
+                "type": "String",
+                "description": "(Conditional) 'RunAsUserUserName' windows user account password. This is required only if operating system is Windows.",
+                "default": ""
+              },
+              "SSLCertificateFile": {
+                "type": "String",
+                "description": "(Required) AWS S3 key of SSL certificate file in PKSC12 format."
+              },
+              "SSLCertificatePassword": {
+                "type": "String",
+                "description": "(Required) SSL certificate file password."
+              },
+              "ConfigStoreType": {
+                "type": "String",
+                "description": "(Optional) ArcGIS Enterprise config store type.",
+                "default": "FileSystem",
+                "allowedValues": [
+                  "FileSystem",
+                  "CloudStore"
+                ]
+              },
+              "PortalContentStoreBucket": {
+                "type": "String",
+                "description": "(Conditional). Portal content store AWS S3 bucket name. Required only if configStoreType is CloudStore.",
+                "default": ""
+              },
+              "SiteDomain": {
+                "type": "String",
+                "description": "(Required) Domain name of ArcGIS Enterprise deployment."
+              },
+              "SecondarySiteDomain": {
+                "type": "String",
+                "description": "(Optional) Secondary domain name of ArcGIS Enterprise deployment.",
+                "default": ""
+              },
+              "PortalWebadaptorName": {
+                "type": "String",
+                "description": "(Required) Webadaptor name for ArcGIS Portal site."
+              },
+              "ServerWebadaptorName": {
+                "type": "String",
+                "description": "(Required) Webadaptor name for ArcGIS Server site."
+              },
+              "ExecuteRemoteSSMDocumentName": {
+                "type": "String",
+                "description": "(Required) Execute composite or nested Systems Manager documents (SSM documents) stored in a remote location."
+              },
+              "ArcGISWinBootstrapSSMDocumentPath": {
+                "type": "String",
+                "description": "(Required) AWS S3 path of SSM Document to bootstrap Windows instance."
+              },
+              "ArcGISEnterpriseWinSSMDocumentPath": {
+                "type": "String",
+                "description": "(Required) AWS S3 path of SSM Document to execute on EC2 instances for installing and configuring ArcGIS Enterprise on Windows."
+              },
+              "ArcGISLinBootstrapSSMDocumentPath": {
+                "type": "String",
+                "description": "(Required) AWS S3 path of SSM Document to bootstrap Linux instance."
+              },
+              "ArcGISEnterpriseLinSSMDocumentPath": {
+                "type": "String",
+                "description": "(Required) AWS S3 path of SSM Document to execute on EC2 instances for installing and configuring ArcGIS Enterprise on Linux."
+              },
+              "InstanceId": {
+                "type": "String",
+                "description": "(Required) AWS EC2 instance id."
+              },
+              "DeploymentLogs": {
+                "type": "String",
+                "description": "(Required) AWS CloudWatch log group name."
+              },
+              "StackName": {
+                "type": "String",
+                "description": "(Required) AWS CloudFormation stack name."
+              },
+              "WaitCondition": {
+                "type": "String",
+                "description": "(Required) Wait condition for CloudFormation stack."
+              }
+            },
+            "mainSteps": [
+              {
+                "name": "CheckInstanceState",
+                "action": "aws:changeInstanceState",
+                "maxAttempts": 3,
+                "timeoutSeconds": 1800,
+                "onFailure": "step:SignalFailure",
+                "nextStep": "ConditionForOperatingSystem",
+                "inputs": {
+                  "InstanceIds": [
+                    "{{InstanceId}}"
+                  ],
+                  "CheckStateOnly": true,
+                  "DesiredState": "running"
+                }
+              },
+              {
+                "name": "ConditionForOperatingSystem",
+                "action": "aws:branch",
+                "inputs": {
+                  "Choices": [
+                    {
+                      "NextStep": "BootstrapWindowsNode",
+                      "Variable": "{{PlatformType}}",
+                      "EqualsIgnoreCase": "Windows"
+                    },
+                    {
+                      "NextStep": "BootstrapLinuxNode",
+                      "Variable": "{{PlatformType}}",
+                      "EqualsIgnoreCase": "Linux"
+                    }
+                  ],
+                  "Default": "SignalFailure"
+                }
+              },
+              {
+                "name": "BootstrapWindowsNode",
+                "action": "aws:runCommand",
+                "onFailure": "step:SignalFailure",
+                "nextStep": "ConfigureArcGISEnterpriseOnWindows",
+                "timeoutSeconds": 3600,
+                "inputs": {
+                  "DocumentName": "{{ExecuteRemoteSSMDocumentName}}",
+                  "InstanceIds": [
+                    "{{InstanceId}}"
+                  ],
+                  "CloudWatchOutputConfig": {
+                    "CloudWatchOutputEnabled": true,
+                    "CloudWatchLogGroupName": "{{DeploymentLogs}}"
+                  },
+                  "Parameters": {
+                    "documentUrl": "{{ArcGISWinBootstrapSSMDocumentPath}}",
+                    "documentParameters": {
+                      "arcgisVersion": "{{ArcGISVersion}}",
+                      "cincClientUrl": "{{CincClientUrlWin}}",
+                      "cookbooksUrl": "{{CookbooksUrl}}"
+                    }
+                  }
+                }
+              },
+              {
+                "name": "BootstrapLinuxNode",
+                "action": "aws:runCommand",
+                "onFailure": "step:SignalFailure",
+                "nextStep": "ConfigureArcGISEnterpriseOnLinux",
+                "timeoutSeconds": 3600,
+                "inputs": {
+                  "DocumentName": "{{ExecuteRemoteSSMDocumentName}}",
+                  "InstanceIds": [
+                    "{{InstanceId}}"
+                  ],
+                  "CloudWatchOutputConfig": {
+                    "CloudWatchOutputEnabled": true,
+                    "CloudWatchLogGroupName": "{{DeploymentLogs}}"
+                  },
+                  "Parameters": {
+                    "documentUrl": "{{ArcGISLinBootstrapSSMDocumentPath}}",
+                    "documentParameters": {
+                      "arcgisVersion": "{{ArcGISVersion}}",
+                      "awsCliBundleUrl": "{{AWSCliBundleUrl}}",
+                      "cincClientUrl": "{{CincClientUrlLin}}",
+                      "cookbooksUrl": "{{CookbooksUrl}}"
+                    }
+                  }
+                }
+              },
+              {
+                "name": "ConfigureArcGISEnterpriseOnWindows",
+                "action": "aws:runCommand",
+                "onFailure": "step:SignalFailure",
+                "nextStep": "SignalSuccess",
+                "timeoutSeconds": 14400,
+                "inputs": {
+                  "DocumentName": "{{ExecuteRemoteSSMDocumentName}}",
+                  "InstanceIds": [
+                    "{{InstanceId}}"
+                  ],
+                  "CloudWatchOutputConfig": {
+                    "CloudWatchOutputEnabled": true,
+                    "CloudWatchLogGroupName": "{{DeploymentLogs}}"
+                  },
+                  "Parameters": {
+                    "documentUrl": "{{ArcGISEnterpriseWinSSMDocumentPath}}",
+                    "documentParameters": {
+                      "arcgisVersion": "{{ArcGISVersion}}",
+                      "deploymentId": "{{DeploymentId}}",
+                      "machineRole": "arcgis-enterprise-primary",
+                      "deploymentBucket": "{{DeploymentBucket}}",
+                      "portalLicenseFile": "{{PortalLicenseFile}}",
+                      "userLicenseTypeId": "{{UserLicenseTypeId}}",
+                      "serverLicenseFile": "{{ServerLicenseFile}}",
+                      "siteAdmin": "{{SiteAdmin}}",
+                      "siteAdminPassword": "{{SiteAdminPassword}}",
+                      "runAsUserUserName": "{{RunAsUserUserName}}",
+                      "runAsUserPassword": "{{RunAsUserPassword}}",
+                      "sslCertificateFile": "{{SSLCertificateFile}}",
+                      "sslCertificatePassword": "{{SSLCertificatePassword}}",
+                      "configStoreType": "{{ConfigStoreType}}",
+                      "portalContentStoreBucket": "{{PortalContentStoreBucket}}",
+                      "siteDomain": "{{SiteDomain}}",
+                      "secondarySiteDomain": "{{SecondarySiteDomain}}",
+                      "portalWebadaptorName": "{{PortalWebadaptorName}}",
+                      "serverWebadaptorName": "{{ServerWebadaptorName}}"
+                    }
+                  }
+                }
+              },
+              {
+                "name": "ConfigureArcGISEnterpriseOnLinux",
+                "action": "aws:runCommand",
+                "onFailure": "step:SignalFailure",
+                "nextStep": "SignalSuccess",
+                "timeoutSeconds": 14400,
+                "inputs": {
+                  "DocumentName": "{{ExecuteRemoteSSMDocumentName}}",
+                  "InstanceIds": [
+                    "{{InstanceId}}"
+                  ],
+                  "CloudWatchOutputConfig": {
+                    "CloudWatchOutputEnabled": true,
+                    "CloudWatchLogGroupName": "{{DeploymentLogs}}"
+                  },
+                  "Parameters": {
+                    "documentUrl": "{{ArcGISEnterpriseLinSSMDocumentPath}}",
+                    "documentParameters": {
+                      "arcgisVersion": "{{ArcGISVersion}}",
+                      "deploymentId": "{{DeploymentId}}",
+                      "machineRole": "arcgis-enterprise-primary",
+                      "deploymentBucket": "{{DeploymentBucket}}",
+                      "portalLicenseFile": "{{PortalLicenseFile}}",
+                      "userLicenseTypeId": "{{UserLicenseTypeId}}",
+                      "serverLicenseFile": "{{ServerLicenseFile}}",
+                      "siteAdmin": "{{SiteAdmin}}",
+                      "siteAdminPassword": "{{SiteAdminPassword}}",
+                      "runAsUserUserName": "{{RunAsUserUserName}}",
+                      "sslCertificateFile": "{{SSLCertificateFile}}",
+                      "sslCertificatePassword": "{{SSLCertificatePassword}}",
+                      "configStoreType": "{{ConfigStoreType}}",
+                      "portalContentStoreBucket": "{{PortalContentStoreBucket}}",
+                      "siteDomain": "{{SiteDomain}}",
+                      "secondarySiteDomain": "{{SecondarySiteDomain}}",
+                      "portalWebadaptorName": "{{PortalWebadaptorName}}",
+                      "serverWebadaptorName": "{{ServerWebadaptorName}}"
+                    }
+                  }
+                }
+              },
+              {
+                "name": "SignalFailure",
+                "action": "aws:executeScript",
+                "isEnd": true,
+                "inputs": {
+                  "Runtime": "PowerShell Core 6.0",
+                  "Script": "$inputPayload = $env:InputPayload | ConvertFrom-Json;\r\n\r\n$StackName = $inputPayload.StackName;\r\n$WaitCondition = $inputPayload.WaitCondition;\r\n$UniqueId = $inputPayload.UniqueId;\r\n$Status = $inputPayload.Status;\r\n\r\n$ActionName = $inputPayload.ActionName;\r\n$LogGroupName = $inputPayload.LogGroupName;\r\n$global:RegionId = $inputPayload.RegionId;\r\n\r\n$guid = New-Guid;\r\n$LogStreamName = \"$guid/$ActionName/stderr\"\r\n$global:LogSequenceToken = \"\"\r\n\r\nInstall-Module AWS.Tools.CloudFormation -Force\r\nInstall-Module AWS.Tools.CloudWatchLogs -Force\r\n\r\nImport-Module AWS.Tools.CloudFormation\r\nImport-Module AWS.Tools.CloudWatchLogs\r\n\r\nfunction WriteErrorLog($errormessage) {\r\n  Write-Error $errormessage | format-list -force\r\n  if ([string]::IsNullOrEmpty($global:LogSequenceToken)) {\r\n    $splat = @{\r\n      LogGroupName = $LogGroupName\r\n      LogStreamName =  $LogStreamName\r\n    }\r\n    New-CWLLogStream @splat -Region $global:RegionId\r\n\r\n    $logEntry = New-Object Amazon.CloudWatchLogs.Model.InputLogEvent\r\n    $logEntry.Message = $errormessage\r\n    $logEntry.Timestamp = (Get-Date).ToUniversalTime()\r\n\r\n    $splat = @{\r\n      LogEvent      = $logEntry\r\n      LogGroupName  = $LogGroupName\r\n      LogStreamName = $LogStreamName\r\n    }\r\n    $global:LogSequenceToken = Write-CWLLogEvent @splat -Region $global:RegionId\r\n  } else {\r\n    $logEntry =  New-Object Amazon.CloudWatchLogs.Model.InputLogEvent\r\n    $logEntry.Message = $errormessage\r\n    $logEntry.Timestamp = (Get-Date).ToUniversalTime()\r\n\r\n    $splat = @{\r\n      LogEvent      = $logEntry\r\n      LogGroupName  = $LogGroupName\r\n      LogStreamName = $LogStreamName\r\n      SequenceToken = $global:LogSequenceToken\r\n    }\r\n    $global:LogSequenceToken = Write-CWLLogEvent @splat -Region $global:RegionId\r\n  }\r\n  return $global:LogSequenceToken\r\n}\r\n\r\nif (-not ([string]::IsNullOrEmpty($WaitCondition)))\r\n{\r\n  try\r\n  {\r\n    $stackstatus=((Get-CFNStack -StackName $StackName -Region $global:RegionId).StackStatus).Value\r\n    if ($stackstatus -eq 'CREATE_IN_PROGRESS')\r\n    {\r\n      Send-CFNResourceSignal -StackName $StackName -LogicalResourceId $WaitCondition -Status $Status -UniqueId $UniqueId -Region $global:RegionId\r\n      # Write-Host 'Sent signal back to cloudformation stack successfully'\r\n    }\r\n  }\r\n  catch\r\n  {\r\n    Write-Error $_.Exception | format-list -force\r\n    $global:LogSequenceToken = WriteErrorLog('Failed to send signal back to CloudFormation stack. ' + $_.Exception)\r\n    Write-Error 'Failed to send signal back to CloudFormation stack.' -ErrorAction Stop\r\n  }\r\n}",
+                  "InputPayload": {
+                    "StackName": "{{StackName}}",
+                    "UniqueId": "{{InstanceId}}",
+                    "WaitCondition": "{{WaitCondition}}",
+                    "Status": "FAILURE",
+                    "ActionName": "SignalFailure",
+                    "LogGroupName": "{{DeploymentLogs}}",
+                    "RegionId": "{{global:REGION}}"
+                  }
+                }
+              },
+              {
+                "name": "SignalSuccess",
+                "action": "aws:executeScript",
+                "isEnd": true,
+                "inputs": {
+                  "Runtime": "PowerShell Core 6.0",
+                  "Script": "$inputPayload = $env:InputPayload | ConvertFrom-Json;\r\n\r\n$StackName = $inputPayload.StackName;\r\n$WaitCondition = $inputPayload.WaitCondition;\r\n$UniqueId = $inputPayload.UniqueId;\r\n$Status = $inputPayload.Status;\r\n\r\n$ActionName = $inputPayload.ActionName;\r\n$LogGroupName = $inputPayload.LogGroupName;\r\n$global:RegionId = $inputPayload.RegionId;\r\n\r\n$guid = New-Guid;\r\n$LogStreamName = \"$guid/$ActionName/stderr\"\r\n$global:LogSequenceToken = \"\"\r\n\r\nInstall-Module AWS.Tools.CloudFormation -Force\r\nInstall-Module AWS.Tools.CloudWatchLogs -Force\r\n\r\nImport-Module AWS.Tools.CloudFormation\r\nImport-Module AWS.Tools.CloudWatchLogs\r\n\r\nfunction WriteErrorLog($errormessage) {\r\n  Write-Error $errormessage | format-list -force\r\n  if ([string]::IsNullOrEmpty($global:LogSequenceToken)) {\r\n    $splat = @{\r\n      LogGroupName = $LogGroupName\r\n      LogStreamName =  $LogStreamName\r\n    }\r\n    New-CWLLogStream @splat -Region $global:RegionId\r\n\r\n    $logEntry = New-Object Amazon.CloudWatchLogs.Model.InputLogEvent\r\n    $logEntry.Message = $errormessage\r\n    $logEntry.Timestamp = (Get-Date).ToUniversalTime()\r\n\r\n    $splat = @{\r\n      LogEvent      = $logEntry\r\n      LogGroupName  = $LogGroupName\r\n      LogStreamName = $LogStreamName\r\n    }\r\n    $global:LogSequenceToken = Write-CWLLogEvent @splat -Region $global:RegionId\r\n  } else {\r\n    $logEntry =  New-Object Amazon.CloudWatchLogs.Model.InputLogEvent\r\n    $logEntry.Message = $errormessage\r\n    $logEntry.Timestamp = (Get-Date).ToUniversalTime()\r\n\r\n    $splat = @{\r\n      LogEvent      = $logEntry\r\n      LogGroupName  = $LogGroupName\r\n      LogStreamName = $LogStreamName\r\n      SequenceToken = $global:LogSequenceToken\r\n    }\r\n    $global:LogSequenceToken = Write-CWLLogEvent @splat -Region $global:RegionId\r\n  }\r\n  return $global:LogSequenceToken\r\n}\r\n\r\nif (-not ([string]::IsNullOrEmpty($WaitCondition)))\r\n{\r\n  try\r\n  {\r\n    $stackstatus=((Get-CFNStack -StackName $StackName -Region $global:RegionId).StackStatus).Value\r\n    if ($stackstatus -eq 'CREATE_IN_PROGRESS')\r\n    {\r\n      Send-CFNResourceSignal -StackName $StackName -LogicalResourceId $WaitCondition -Status $Status -UniqueId $UniqueId -Region $global:RegionId\r\n      # Write-Host 'Sent signal back to cloudformation stack successfully'\r\n    }\r\n  }\r\n  catch\r\n  {\r\n    Write-Error $_.Exception | format-list -force\r\n    $global:LogSequenceToken = WriteErrorLog('Failed to send signal back to CloudFormation stack. ' + $_.Exception)\r\n    Write-Error 'Failed to send signal back to CloudFormation stack.' -ErrorAction Stop\r\n  }\r\n}",
+                  "InputPayload": {
+                    "StackName": "{{StackName}}",
+                    "UniqueId": "{{InstanceId}}",
+                    "WaitCondition": "{{WaitCondition}}",
+                    "Status": "SUCCESS",
+                    "ActionName": "SignalSuccess",
+                    "LogGroupName": "{{DeploymentLogs}}",
+                    "RegionId": "{{global:REGION}}"
+                  }
+                }
+              }
+            ]
+          },
+          "DocumentType": "Automation",
+          "Tags": [
+            {
+              "Key": "arcgisenterprise:cloudformation:logical-id",
+              "Value": "Automation"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-id",
+              "Value": {
+                "Ref": "AWS::StackId"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:stack-name",
+              "Value": {
+                "Ref": "AWS::StackName"
+              }
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-name",
+              "Value": "arcgis-enterprise-allinone.template.json"
+            },
+            {
+              "Key": "arcgisenterprise:cloudformation:template-provider",
+              "Value": "Esri"
+            }
+          ]
+        }
+      },
+      "ArcGISEnterpriseAllInOneWaitCondition": {
+        "Type": "AWS::CloudFormation::WaitCondition",
+        "DependsOn": [
+          "AllInOneEC2Instance"
+        ],
+        "CreationPolicy": {
+          "ResourceSignal": {
+            "Count": 1,
+            "Timeout": "PT4H"
+          }
+        }
+      },
+      "ArcGISEnterpriseAllInOneAssociation": {
+        "Type": "AWS::SSM::Association",
+        "Properties": {
+          "Name": {
+            "Ref": "ArcGISEnterpriseAllInOneAutomation"
+          },
+          "Parameters": {
+            "AutomationAssumeRole": [
+              {
+                "Fn::GetAtt": [
+                  "ArcGISEnterpriseIAMRole",
+                  "Arn"
+                ]
+              }
+            ],
+            "PlatformType": [
+              {
+                "Ref": "PlatformType"
+              }
+            ],
+            "DeploymentId": [
+              {
+                "Ref": "AWS::StackName"
+              }
+            ],
+            "AWSCliBundleUrl": [
+              "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
+            ],
+            "CincClientUrlWin": [
+              "https://arcgisstore-us-east-1.s3.amazonaws.com/cincclient/cinc-18.4.2-1-x64.msi"
+            ],
+            "CincClientUrlLin": [
+              "https://omnitruck.cinc.sh/install.sh"
+            ],
+            "CookbooksUrl": [
+              "https://arcgisstore.s3.amazonaws.com/1140/cookbooks/arcgis-5.1.0-cookbooks.tar.gz"
+            ],
+            "ArcGISVersion": [
+              "11.4"
+            ],
+            "DeploymentBucket": [
+              {
+                "Ref": "DeploymentBucket"
+              }
+            ],
+            "PortalLicenseFile": [
+              {
+                "Ref": "PortalLicenseFileKeyName"
+              }
+            ],
+            "UserLicenseTypeId": [
+              {
+                "Ref": "UserLicenseTypeId"
+              }
+            ],
+            "ServerLicenseFile": [
+              {
+                "Ref": "ServerLicenseFileKeyName"
+              }
+            ],
+            "SiteAdmin": [
+              {
+                "Ref": "SiteadminUserName"
+              }
+            ],
+            "SiteAdminPassword": [
+              {
+                "Ref": "SiteadminUserPassword"
+              }
+            ],
+            "RunAsUserUserName": [
+              "arcgis"
+            ],
+            "RunAsUserPassword": [
+              {
+                "Ref": "arcgisUserPassword"
+              }
+            ],
+            "SSLCertificateFile": [
+              {
+                "Ref": "SSLCertificateFileKeyName"
+              }
+            ],
+            "SSLCertificatePassword": [
+              {
+                "Ref": "SSLCertificatePassword"
+              }
+            ],
+            "ConfigStoreType": [
+              {
+                "Ref": "ConfigStoreType"
+              }
+            ],
+            "PortalContentStoreBucket": [
+              {
+                "Fn::If": [
+                  "UseCloudStore",
+                  {
+                    "Ref": "PortalContentBucket"
+                  },
+                  ""
+                ]
+              }
+            ],
+            "SiteDomain": [
+              {
+                "Ref": "SiteDomain"
+              }
+            ],
+            "SecondarySiteDomain": [
+              {
+                "Ref": "SecondarySiteDomain"
+              }
+            ],
+            "PortalWebadaptorName": [
+              {
+                "Ref": "PortalWebadaptorName"
+              }
+            ],
+            "ServerWebadaptorName": [
+              {
+                "Ref": "ServerWebadaptorName"
+              }
+            ],
+            "ExecuteRemoteSSMDocumentName": [
+              {
+                "Ref": "ArcGISEnterpriseAllInOneCommandDocument"
+              }
+            ],
+            "ArcGISWinBootstrapSSMDocumentPath": [
+              "https://arcgisstore.s3.us-east-1.amazonaws.com/1140/ssmdocuments/ESRI-Bootstrap-Windows.json"
+            ],
+            "ArcGISEnterpriseWinSSMDocumentPath": [
+              "https://arcgisstore.s3.us-east-1.amazonaws.com/1140/ssmdocuments/ESRI-ArcGISEnterprise-Windows.json"
+            ],
+            "ArcGISLinBootstrapSSMDocumentPath": [
+              "https://arcgisstore.s3.us-east-1.amazonaws.com/1140/ssmdocuments/ESRI-Bootstrap-Linux.json"
+            ],
+            "ArcGISEnterpriseLinSSMDocumentPath": [
+              "https://arcgisstore.s3.us-east-1.amazonaws.com/1140/ssmdocuments/ESRI-ArcGISEnterprise-Linux.json"
+            ],
+            "InstanceId": [
+              {
+                "Ref": "AllInOneEC2Instance"
+              }
+            ],
+            "DeploymentLogs": [
+              {
+                "Ref": "DeploymentLogs"
+              }
+            ],
+            "StackName": [
+              {
+                "Ref": "AWS::StackName"
+              }
+            ],
+            "WaitCondition": [
+              "ArcGISEnterpriseAllInOneWaitCondition"
+            ]
+          }
+        },
+        "DependsOn": [
+          "AllInOneEC2Instance"
+        ]
+      }
+    },
+    "Outputs": {
+      "PortalHomeAppURL": {
+        "Description": "Portal for ArcGIS URL",
+        "Value": {
+          "Fn::Join": [
+            "",
+            [
+              "https://",
+              {
+                "Ref": "SiteDomain"
+              },
+              "/",
+              {
+                "Ref": "PortalWebadaptorName"
+              },
+              "/home"
+            ]
+          ]
+        }
+      },
+      "ServerManagerDirURL": {
+        "Description": "ArcGIS Server Manager URL",
+        "Value": {
+          "Fn::Join": [
+            "",
+            [
+              "https://",
+              {
+                "Ref": "SiteDomain"
+              },
+              "/",
+              {
+                "Ref": "ServerWebadaptorName"
+              },
+              "/manager"
+            ]
+          ]
+        }
+      },
+      "ServerRestDirURL": {
+        "Description": "ArcGIS Server REST Services Directory URL",
+        "Value": {
+          "Fn::Join": [
+            "",
+            [
+              "https://",
+              {
+                "Ref": "SiteDomain"
+              },
+              "/",
+              {
+                "Ref": "ServerWebadaptorName"
+              },
+              "/rest"
+            ]
+          ]
+        }
+      },
+      "DeploymentLogsURL": {
+        "Description": "Deployment Logs",
+        "Value": {
+          "Fn::Join": [
+            "",
+            [
+              "https://console.aws.amazon.com/cloudwatch/home?region=",
+              {
+                "Ref": "AWS::Region"
+              },
+              "#logStream:group=",
+              {
+                "Ref": "DeploymentLogs"
+              }
+            ]
+          ]
+        }
+      },
+      "StopStackFunctionName": {
+        "Description": "Lambda function used to stop all EC2 instances in the stack.",
+        "Value": {
+          "Fn::Join": [
+            "",
+            [
+              "https://console.aws.amazon.com/lambda/home?region=",
+              {
+                "Ref": "AWS::Region"
+              },
+              "#/functions/",
+              {
+                "Ref": "StopStackFunction"
+              }
+            ]
+          ]
+        }
+      },
+      "StartStackFunctionName": {
+        "Description": "Lambda function used to start all EC2 instances in the stack.",
+        "Value": {
+          "Fn::Join": [
+            "",
+            [
+              "https://console.aws.amazon.com/lambda/home?region=",
+              {
+                "Ref": "AWS::Region"
+              },
+              "#/functions/",
+              {
+                "Ref": "StartStackFunction"
+              }
+            ]
+          ]
+        }
+      }
+    }
+  }
